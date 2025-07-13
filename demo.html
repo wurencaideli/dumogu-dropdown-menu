@@ -1,0 +1,129 @@
+<!DOCTYPE >
+<html>
+    <head>
+        <title>dumogu-dropdown-menu demo</title>
+        <meta
+            name="viewport"
+            content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1"
+        />
+        <link rel="stylesheet" href="./dist/dumogu-dropdown-menu.css" />
+        <script src="./dist/dumogu-dropdown-menu.umd.js"></script>
+        <style>
+            body {
+                font-size: 12px;
+                margin: 0;
+                padding: 0;
+            }
+            .dumogu-dropdown-menu-demo > .container {
+                height: 150vh;
+                width: 150vw;
+            }
+            .dumogu-dropdown-menu-demo > .container > .bt {
+                position: absolute;
+                left: 50vw;
+                top: 50vh;
+                width: max-content;
+                cursor: pointer;
+            }
+            .dumogu-dropdown-menu-body-container-target {
+                background-color: black;
+            }
+        </style>
+        <script>
+            window.addEventListener('DOMContentLoaded', function () {
+                const { DumoguDropdownMenu } = window['dumogu-dropdown-menu'];
+                const ddInstanceList = [];
+                const btEl = document.getElementById('bt');
+                function getArea(el) {
+                    const elRect = el.getBoundingClientRect();
+                    const area = {
+                        start: [elRect.x, elRect.y],
+                        end: [elRect.x + elRect.width, elRect.y + elRect.height],
+                        width: elRect.width,
+                        height: elRect.height,
+                    };
+                    return area;
+                }
+                const ddInstance = new DumoguDropdownMenu({
+                    // 可以是html文本
+                    content: `
+                        <div class="menu-item"> 测试 </div>
+                        <div class="menu-item"> 测试 </div>
+                        <div class="menu-item"> 测试 </div>
+                    `,
+                    area: getArea(btEl),
+                    show: true,
+                });
+                ddInstance.dropdownMenuContainerTargetEl.classList.add(
+                    'dumogu-dropdown-menu-theme',
+                );
+                ddInstance.targetEl = btEl;
+                btEl.addEventListener('click', () => {
+                    if (!ddInstance.show) {
+                        // 可以是element对象
+                        const item_1 = document.createElement('div');
+                        item_1.innerHTML = '测试';
+                        item_1.classList.add('menu-item');
+                        item_1.onclick = () => {
+                            ddInstance.show = false;
+                            console.log('所绑定的数据：', { test: 1 });
+                        };
+                        const item_2 = document.createElement('div');
+                        item_2.innerHTML = '测试';
+                        item_2.classList.add('menu-item');
+                        ddInstance.content = [item_1, item_2];
+                    }
+                    ddInstance.area = getArea(btEl); // 设置需要显示的区域
+                    ddInstance.show = !ddInstance.show; // 显示/隐藏菜单
+                });
+                ddInstanceList.push(ddInstance);
+                /** 初始化隐藏事件，点击页面的其他地方可以隐藏菜单 */
+                function initHiddenEvent(ddInstance_) {
+                    function callbackFn(e) {
+                        if (!e || !e.target) return;
+                        if (!ddInstance_.show) return;
+                        if (ddInstance_.isDestroyed) return;
+                        if (
+                            !ddInstance_.dropdownMenuContainerTargetEl.contains(e.target) &&
+                            !ddInstance_.targetEl.contains(e.target)
+                        ) {
+                            ddInstance_.show = false;
+                        }
+                    }
+                    document.addEventListener('click', callbackFn);
+                }
+                initHiddenEvent(ddInstance);
+                window.ddInstance = ddInstance;
+                /**
+                 * 每一帧更新位置
+                 * 因为有很多原因导致元素的位置发生移动，无法在每一个场景去设置位置
+                 */
+                function updateDdInstance() {
+                    requestAnimationFrame(() => {
+                        ddInstanceList.forEach((item) => {
+                            item.area = getArea(item.targetEl);
+                            item.update();
+                        });
+                        updateDdInstance();
+                    });
+                }
+                updateDdInstance();
+            });
+        </script>
+    </head>
+
+    <body>
+        <div class="dumogu-dropdown-menu-demo">
+            <a
+                href="https://github.com/wurencaideli/dumogu-dropdown-menu"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Github</a
+            >
+            <div class="container">
+                <div>完全由用户定义显示位置，显示时机</div>
+                <button id="bt" class="bt">测试</button>
+            </div>
+        </div>
+    </body>
+</html>
