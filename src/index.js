@@ -1,8 +1,8 @@
 import { BaseTools, removeElement, addElementClass, removeElementClass } from './common';
 export class DumoguDropdownMenu extends BaseTools {
-    dropdownMenuEl;
-    dropdownMenuContainerEl;
-    dropdownMenuContainerTargetEl;
+    #dropdownMenuEl__;
+    #dropdownMenuContainerEl__;
+    #dropdownMenuContainerTargetEl__;
     #show__ = false;
     #content__ = '';
     #transitionStart__;
@@ -26,13 +26,31 @@ export class DumoguDropdownMenu extends BaseTools {
         );
         dropdownMenuEl.appendChild(dropdownMenuContainerEl);
         dropdownMenuContainerEl.appendChild(dropdownMenuContainerTargetEl);
-        this.dropdownMenuEl = dropdownMenuEl;
-        this.dropdownMenuContainerEl = dropdownMenuContainerEl;
-        this.dropdownMenuContainerTargetEl = dropdownMenuContainerTargetEl;
+        this.#dropdownMenuEl__ = dropdownMenuEl;
+        this.#dropdownMenuContainerEl__ = dropdownMenuContainerEl;
+        this.#dropdownMenuContainerTargetEl__ = dropdownMenuContainerTargetEl;
         this.#addEventListener();
         this.content = options.content;
         this.area = options.area;
         this.show = options.show;
+    }
+    set dropdownMenuEl(value) {
+        this.#dropdownMenuEl__ = value;
+    }
+    get dropdownMenuEl() {
+        return this.#dropdownMenuEl__;
+    }
+    set dropdownMenuContainerEl(value) {
+        this.#dropdownMenuContainerEl__ = value;
+    }
+    get dropdownMenuContainerEl() {
+        return this.#dropdownMenuContainerEl__;
+    }
+    set dropdownMenuContainerTargetEl(value) {
+        this.#dropdownMenuContainerTargetEl__ = value;
+    }
+    get dropdownMenuContainerTargetEl() {
+        return this.#dropdownMenuContainerTargetEl__;
     }
     set show(value) {
         if (this.isDestroyed) return;
@@ -88,12 +106,12 @@ export class DumoguDropdownMenu extends BaseTools {
         if (this.isDestroyed) return;
         super.mount();
         this.#computedPosition();
-        document.body.appendChild(this.dropdownMenuEl);
+        document.body.appendChild(this.#dropdownMenuEl__);
     }
     unmount() {
         if (this.isDestroyed) return;
         super.unmount();
-        removeElement(this.dropdownMenuEl);
+        removeElement(this.#dropdownMenuEl__);
     }
     destroy() {
         if (this.isDestroyed) return;
@@ -101,9 +119,9 @@ export class DumoguDropdownMenu extends BaseTools {
         this.unmount();
         this.content = undefined;
         super.destroy();
-        this.dropdownMenuEl = undefined;
-        this.dropdownMenuContainerEl = undefined;
-        this.dropdownMenuContainerTargetEl = undefined;
+        this.#dropdownMenuEl__ = undefined;
+        this.#dropdownMenuContainerEl__ = undefined;
+        this.#dropdownMenuContainerTargetEl__ = undefined;
     }
     update() {
         this.#computedPosition();
@@ -111,7 +129,7 @@ export class DumoguDropdownMenu extends BaseTools {
     /** 添加类名 */
     #setupActionClass() {
         if (this.isDestroyed) return;
-        const dropdownMenuEl = this.dropdownMenuEl;
+        const dropdownMenuEl = this.#dropdownMenuEl__;
         if (this.#show__) {
             addElementClass(dropdownMenuEl, 'show');
         } else {
@@ -121,7 +139,7 @@ export class DumoguDropdownMenu extends BaseTools {
     /** 添加内容 */
     #setupContent() {
         if (this.isDestroyed) return;
-        const dropdownMenuContainerTargetEl = this.dropdownMenuContainerTargetEl;
+        const dropdownMenuContainerTargetEl = this.#dropdownMenuContainerTargetEl__;
         let content = this.#content__ || '';
         if (typeof content === 'string') {
             dropdownMenuContainerTargetEl.innerHTML = content;
@@ -141,17 +159,17 @@ export class DumoguDropdownMenu extends BaseTools {
         }
     }
     #transitionstart(e) {
-        if (!e || e.propertyName !== 'transform' || e.target !== this.dropdownMenuContainerEl)
+        if (!e || e.propertyName !== 'transform' || e.target !== this.#dropdownMenuContainerEl__)
             return;
         this.isTransitioning = true;
     }
     #transitionEnd(e) {
-        if (!e || e.propertyName !== 'transform' || e.target !== this.dropdownMenuContainerEl)
+        if (!e || e.propertyName !== 'transform' || e.target !== this.#dropdownMenuContainerEl__)
             return;
         this.isTransitioning = false;
     }
     #addEventListener() {
-        const dropdownMenuContainerEl = this.dropdownMenuContainerEl;
+        const dropdownMenuContainerEl = this.#dropdownMenuContainerEl__;
         const that = this;
         that.#transitionStart__ = function (e) {
             that.#transitionstart(e);
@@ -163,7 +181,7 @@ export class DumoguDropdownMenu extends BaseTools {
         dropdownMenuContainerEl.addEventListener('transitionend', that.#transitionEnd__);
     }
     #removeEventListener() {
-        const dropdownMenuContainerEl = this.dropdownMenuContainerEl;
+        const dropdownMenuContainerEl = this.#dropdownMenuContainerEl__;
         dropdownMenuContainerEl.removeEventListener('transitionstart', this.#transitionStart__);
         dropdownMenuContainerEl.removeEventListener('transitionend', this.#transitionEnd__);
     }
@@ -171,8 +189,8 @@ export class DumoguDropdownMenu extends BaseTools {
     #computedPosition() {
         if (this.isDestroyed) return;
         if (!this.#show__) return;
-        const dropdownMenuContainerEl = this.dropdownMenuContainerEl;
-        const dropdownMenuContainerTargetEl = this.dropdownMenuContainerTargetEl;
+        const dropdownMenuContainerEl = this.#dropdownMenuContainerEl__;
+        const dropdownMenuContainerTargetEl = this.#dropdownMenuContainerTargetEl__;
         const position = this.#computContainerStyle();
         dropdownMenuContainerEl.style.width = position.containerWidth + 'px';
         dropdownMenuContainerEl.style.height = position.containerHeight + 'px';

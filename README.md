@@ -13,7 +13,7 @@ npm install dumogu-dropdown-menu
 #### How to use
 
 ```javascript
-import { DumoguDropdownMenu } form 'dumogu-dropdown-menu';
+import { DumoguDropdownMenu } from 'dumogu-dropdown-menu';
 const ddInstance = new DumoguDropdownMenu({
     content: '<div class="menu-item"> Test </div>',
     area: {
@@ -24,14 +24,15 @@ const ddInstance = new DumoguDropdownMenu({
     },
     show: true,
 });
-ddInstance.dropdownMenuContainerTargetEl.classList.add( // Add default theme class name
+ddInstance.dropdownMenuContainerTargetEl.classList.add(
+    // Add default theme class name
     'dumogu-dropdown-menu-theme',
 );
 
 /** When the element position changes, manually update the style */
-ddInstance.area = /** Position of elements */;
+ddInstance.area = ; /** Position of elements */
 ddInstance.update();
 
 /** Set whether to display */
-ddInstance.show = /** true || false */
+ddInstance.show = ; /** true || false */
 ```
