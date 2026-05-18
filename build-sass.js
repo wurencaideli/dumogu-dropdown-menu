@@ -11,7 +11,7 @@ const __dirname = dirname(__filename);
 function resolvePath(path_) {
     return path.join(__dirname, path_);
 }
-const inputScss = resolvePath('./src/index.scss');
+const inputScss = resolvePath('./src/dumogu-dropdown-menu.scss');
 const outputCss = resolvePath('./dist/dumogu-dropdown-menu.css');
 /** 设置插件 */
 const processor = Postcss([

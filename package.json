@@ -1,6 +1,6 @@
 {
     "name": "dumogu-dropdown-menu",
-    "version": "0.0.3",
+    "version": "1.0.1",
     "description": "A simple custom scrollbar plugin",
     "author": "wuzhanggui",
     "license": "MIT",
@@ -28,23 +28,36 @@
     "main": "dist/dumogu-dropdown-menu.cjs.js",
     "module": "dist/dumogu-dropdown-menu.esm.js",
     "style": "dist/dumogu-dropdown-menu.css",
+    "exports": {
+        ".": {
+            "types": "./dist/dumogu-dropdown-menu.d.ts",
+            "import": "./dist/dumogu-dropdown-menu.esm.js",
+            "require": "./dist/dumogu-dropdown-menu.cjs.js"
+        },
+        "./dist/dumogu-dropdown-menu.css": "./dist/dumogu-dropdown-menu.css"
+    },
     "files": [
         "dist",
         "src"
     ],
     "scripts": {
-        "build": "rollup -c",
+        "dev": "rollup -c -w",
+        "build": "rollup -c && node ./build-sass.js",
         "build-sass": "node ./build-sass.js"
     },
     "devDependencies": {
         "@rollup/plugin-commonjs": "^28.0.6",
         "@rollup/plugin-node-resolve": "^16.0.1",
         "@rollup/plugin-terser": "^0.4.4",
+        "@rollup/plugin-typescript": "^12.1.4",
+        "@types/node": "^24.12.2",
         "autoprefixer": "^10.4.21",
         "clean-css": "^5.3.3",
         "postcss": "^8.5.6",
         "postcss-preset-env": "^10.2.3",
         "rollup": "^3.29.5",
-        "sass": "^1.89.2"
+        "sass": "^1.89.2",
+        "tslib": "^2.8.1",
+        "typescript": "^5.9.3"
     }
 }

@@ -1,3 +1,4 @@
+import typescript from '@rollup/plugin-typescript';
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import terser from '@rollup/plugin-terser';
@@ -22,7 +23,7 @@ const banner = `/*!
 `;
 
 export default {
-    input: resolvePath('./src/index.js'),
+    input: resolvePath('./src/dumogu-dropdown-menu.ts'),
     output: [
         {
             file: resolvePath(`./dist/${name}.umd.js`),
@@ -44,5 +45,10 @@ export default {
             banner,
         },
     ],
-    plugins: [resolve(), commonjs(), terser()],
+    plugins: [
+        resolve(),
+        commonjs(),
+        typescript({ tsconfig: './tsconfig.json', declaration: true }),
+        terser(),
+    ],
 };
