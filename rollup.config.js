@@ -5,7 +5,7 @@ import terser from '@rollup/plugin-terser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import packageJson from './package.json' assert { type: 'json' };
+import packageJson from './package.json' with { type: 'json' };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

@@ -7,6 +7,14 @@
     overflow: hidden;
     pointer-events: none;
     z-index: 999;
+    /** 挂载到非 body 的自定义容器上时的类名，容器需要是非 static 定位 */
+    &.dumogu-dropdown-menu-body_custom-parent {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+    }
     &.dumogu-dropdown-menu-body_show {
         > .dumogu-dropdown-menu-body_container {
             transform: scale(1);

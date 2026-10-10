@@ -9,6 +9,8 @@ export interface DumoguDropdownMenuOptions {
     content?: string | HTMLElement | HTMLElement[];
     area?: AreaOption;
     show?: boolean;
+    /** 挂载的容器元素，不传时挂载到 body 上 */
+    container?: HTMLElement;
 }
 export declare class DumoguDropdownMenu extends BaseTools {
     #private;
@@ -25,6 +27,12 @@ export declare class DumoguDropdownMenu extends BaseTools {
     get content(): string | HTMLElement | HTMLElement[] | undefined;
     set isTransitioning(value: boolean);
     get isTransitioning(): boolean;
+    /**
+     * 设置挂载的容器元素
+     * @param {HTMLElement} [value] - 挂载的容器元素，不传时挂载到 body 上
+     */
+    set container(value: HTMLElement | undefined);
+    get container(): HTMLElement | undefined;
     /**
      * 设置用于计算位置的区域
      * @param {Object} [value={}] - 区域的属性对象。

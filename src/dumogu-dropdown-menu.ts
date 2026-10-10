@@ -11,6 +11,8 @@ export interface DumoguDropdownMenuOptions {
     content?: string | HTMLElement | HTMLElement[];
     area?: AreaOption;
     show?: boolean;
+    /** 挂载的容器元素，不传时挂载到 body 上 */
+    container?: HTMLElement;
 }
 
 export class DumoguDropdownMenu extends BaseTools {
@@ -22,6 +24,7 @@ export class DumoguDropdownMenu extends BaseTools {
     #transitionStart__: ((e: TransitionEvent) => void) | undefined;
     #transitionEnd__: ((e: TransitionEvent) => void) | undefined;
     #isTransitioning__: boolean = false;
+    #container__: HTMLElement | undefined;
     #area__: AreaOption = {};
     #areaStartPoint: number[] = [0, 0];
     #areaEndPoint: number[] = [0, 0];
@@ -44,6 +47,7 @@ export class DumoguDropdownMenu extends BaseTools {
         this.#dropdownMenuContainerEl__ = dropdownMenuContainerEl;
         this.#dropdownMenuContainerTargetEl__ = dropdownMenuContainerTargetEl;
         this.#addEventListener();
+        this.container = options.container;
         this.content = options.content;
         this.area = options.area;
         this.show = options.show;
@@ -99,6 +103,16 @@ export class DumoguDropdownMenu extends BaseTools {
         return this.#isTransitioning__;
     }
     /**
+     * 设置挂载的容器元素
+     * @param {HTMLElement} [value] - 挂载的容器元素，不传时挂载到 body 上
+     */
+    set container(value: HTMLElement | undefined) {
+        this.#container__ = value;
+    }
+    get container() {
+        return this.#container__;
+    }
+    /**
      * 设置用于计算位置的区域
      * @param {Object} [value={}] - 区域的属性对象。
      * @param {number[]} [value.start=[]] - 区域的起点坐标，格式为 `[x, y]`。
@@ -120,8 +134,10 @@ export class DumoguDropdownMenu extends BaseTools {
     mount(): void {
         if (this.isDestroyed) return;
         super.mount();
+        const mountEl = this.#container__ || document.body;
+        mountEl.appendChild(this.#dropdownMenuEl__!);
+        // 需要先挂载再计算位置，#computedSpace 要测量面板实际覆盖的区域
         this.#computedPosition();
-        document.body.appendChild(this.#dropdownMenuEl__!);
     }
     unmount(): void {
         if (this.isDestroyed) return;
@@ -137,6 +153,7 @@ export class DumoguDropdownMenu extends BaseTools {
         this.#dropdownMenuEl__ = undefined;
         this.#dropdownMenuContainerEl__ = undefined;
         this.#dropdownMenuContainerTargetEl__ = undefined;
+        this.#container__ = undefined;
     }
     update(): void {
         this.#computedPosition();
@@ -149,6 +166,12 @@ export class DumoguDropdownMenu extends BaseTools {
             addElementClass(dropdownMenuEl!, 'dumogu-dropdown-menu-body_show');
         } else {
             removeElementClass(dropdownMenuEl!, 'dumogu-dropdown-menu-body_show');
+        }
+        // 挂载到非 body 的自定义容器上时添加的类名
+        if (this.#container__) {
+            addElementClass(dropdownMenuEl!, 'dumogu-dropdown-menu-body_custom-parent');
+        } else {
+            removeElementClass(dropdownMenuEl!, 'dumogu-dropdown-menu-body_custom-parent');
         }
     }
     /** 添加内容 */
@@ -241,12 +264,35 @@ export class DumoguDropdownMenu extends BaseTools {
                 break;
         }
     }
-    /** 计算空余，判断元素的那个方向有空余 */
-    #computeSpare() {
+    /**
+     * 计算用于定位的空间，挂载到自定义容器时直接测量面板自身覆盖的区域，
+     * 否则以视口为准，并把区域坐标转换为该空间内的坐标
+     */
+    #computedSpace() {
+        const dropdownMenuEl = this.#dropdownMenuEl__;
+        let offsetX = 0;
+        let offsetY = 0;
+        let innerWidth = window.innerWidth;
+        let innerHeight = window.innerHeight;
+        if (this.#container__ && dropdownMenuEl) {
+            const dropdownMenuRect = dropdownMenuEl.getBoundingClientRect();
+            offsetX = dropdownMenuRect.left;
+            offsetY = dropdownMenuRect.top;
+            innerWidth = dropdownMenuRect.width;
+            innerHeight = dropdownMenuRect.height;
+        }
         const areaStartPoint = this.#areaStartPoint;
         const areaEndPoint = this.#areaEndPoint;
-        const innerHeight = window.innerHeight;
-        const innerWidth = window.innerWidth;
+        return {
+            innerWidth,
+            innerHeight,
+            areaStartPoint: [areaStartPoint[0] - offsetX, areaStartPoint[1] - offsetY],
+            areaEndPoint: [areaEndPoint[0] - offsetX, areaEndPoint[1] - offsetY],
+        };
+    }
+    /** 计算空余，判断元素的那个方向有空余 */
+    #computeSpare() {
+        const { innerWidth, innerHeight, areaStartPoint, areaEndPoint } = this.#computedSpace();
         let x = 'left';
         if (innerWidth - areaEndPoint[0] > areaStartPoint[0]) {
             x = 'right';
@@ -262,12 +308,9 @@ export class DumoguDropdownMenu extends BaseTools {
     }
     /** 计算精度，更靠近那个方向 */
     #computeSpareTo() {
-        const areaStartPoint = this.#areaStartPoint;
-        const areaEndPoint = this.#areaEndPoint;
+        const { innerWidth, innerHeight, areaStartPoint, areaEndPoint } = this.#computedSpace();
         const areaWidth = this.#areaWidth;
         const areaHeight = this.#areaHeight;
-        const innerHeight = window.innerHeight;
-        const innerWidth = window.innerWidth;
         const position = this.#computeSpare();
         let ratio = '';
         let targetSlope = Math.abs(areaWidth / areaHeight);
@@ -298,10 +341,7 @@ export class DumoguDropdownMenu extends BaseTools {
     }
     /** 计算容器位置，宽高 */
     #computeContainerStyle() {
-        const areaStartPoint = this.#areaStartPoint;
-        const areaEndPoint = this.#areaEndPoint;
-        const innerHeight = window.innerHeight;
-        const innerWidth = window.innerWidth;
+        const { innerWidth, innerHeight, areaStartPoint, areaEndPoint } = this.#computedSpace();
         const position = this.#computeSpareTo();
         let containerWidth = 0;
         let containerHeight = 0;

@@ -25,6 +25,22 @@
                 width: max-content;
                 cursor: pointer;
             }
+            /** 挂载到自定义容器的示例，容器需要是非 static 定位 */
+            .dumogu-dropdown-menu-demo > .box {
+                position: relative;
+                margin: 30px;
+                height: 300px;
+                width: 400px;
+                border: 1px solid #ccc;
+                overflow: auto;
+            }
+            .dumogu-dropdown-menu-demo > .box > .bt {
+                position: absolute;
+                left: 150px;
+                top: 100px;
+                width: max-content;
+                cursor: pointer;
+            }
             .dumogu-dropdown-menu-body_container_target {
                 background-color: black;
             }
@@ -77,6 +93,27 @@
                     ddInstance.show = !ddInstance.show; // 显示/隐藏菜单
                 });
                 ddInstanceList.push(ddInstance);
+                /** 挂载到自定义容器的示例，不传 container 时挂载到 body 上 */
+                const boxEl = document.getElementById('box');
+                const boxBtEl = document.getElementById('box-bt');
+                const boxDdInstance = new DumoguDropdownMenu({
+                    container: boxEl,
+                    content: `
+                        <div class="dumogu-dropdown-menu-theme_item"> 容器内测试 </div>
+                        <div class="dumogu-dropdown-menu-theme_item"> 容器内测试 </div>
+                    `,
+                    area: getArea(boxBtEl),
+                    show: true,
+                });
+                boxDdInstance.dropdownMenuContainerTargetEl.classList.add(
+                    'dumogu-dropdown-menu-theme',
+                );
+                boxDdInstance.targetEl = boxBtEl;
+                boxBtEl.addEventListener('click', () => {
+                    boxDdInstance.area = getArea(boxBtEl);
+                    boxDdInstance.show = !boxDdInstance.show;
+                });
+                ddInstanceList.push(boxDdInstance);
                 /** 初始化隐藏事件，点击页面的其他地方可以隐藏菜单 */
                 function initHiddenEvent(ddInstance_) {
                     function callbackFn(e) {
@@ -93,6 +130,7 @@
                     document.addEventListener('click', callbackFn);
                 }
                 initHiddenEvent(ddInstance);
+                initHiddenEvent(boxDdInstance);
                 window.ddInstance = ddInstance;
                 /**
                  * 每一帧更新位置
@@ -124,6 +162,9 @@
             <div class="container">
                 <div>完全由用户定义显示位置，显示时机，请滚动页面找到按钮点击查看。</div>
                 <button id="bt" class="bt">测试</button>
+            </div>
+            <div id="box" class="box">
+                <button id="box-bt" class="bt">容器内测试</button>
             </div>
         </div>
     </body>
