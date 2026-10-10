@@ -1,5 +1,5 @@
 /*!
- * dumogu-dropdown-menu v1.0.1
+ * dumogu-dropdown-menu v1.0.3
  * Copyright 2026 wuzhanggui https://github.com/wurencaideli
  * Licensed under MIT
  */
