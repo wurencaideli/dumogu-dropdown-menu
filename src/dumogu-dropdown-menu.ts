@@ -1,398 +1,245 @@
-import { BaseTools, removeElement, addElementClass, removeElementClass } from './common.js';
+import { BaseTools, removeElement } from './common.js';
 
 export interface AreaOption {
-    start?: number[];
-    end?: number[];
+    /** 区域的起点坐标(左上角),格式为 `[x, y]`,视口坐标 */
+    start?: [number, number];
+    /** 区域的终点坐标(右下角),格式为 `[x, y]`,视口坐标 */
+    end?: [number, number];
+    /** 区域的宽度 */
     width?: number;
+    /** 区域的高度 */
     height?: number;
 }
 
 export interface DumoguDropdownMenuOptions {
-    content?: string | HTMLElement | HTMLElement[];
+    /** 菜单内容,可以是 html 文本或者 element 对象 */
+    content?: string | HTMLElement;
+    /** 用于计算位置的触发区域 */
     area?: AreaOption;
+    /** 是否立即显示 */
     show?: boolean;
-    /** 挂载的容器元素，不传时挂载到 body 上 */
+    /** 挂载的容器元素,不传时挂载到 body 上 */
     container?: HTMLElement;
+    /** 显示区域限制:'vertical' 垂直显示、'horizontal' 水平显示,不填则自动识别 */
+    displayAreaLimit?: 'vertical' | 'horizontal' | '';
+    /** 与触发区域边缘保持的距离(px),默认 0 */
+    offset?: number;
+}
+
+interface Layout {
+    /** 横向展开方向 */
+    x: 'left' | 'right';
+    /** 纵向展开方向 */
+    y: 'top' | 'bottom';
+    width: number;
+    height: number;
+    left: number;
+    top: number;
 }
 
 export class DumoguDropdownMenu extends BaseTools {
-    #dropdownMenuEl__: HTMLDivElement | undefined;
-    #dropdownMenuContainerEl__: HTMLDivElement | undefined;
-    #dropdownMenuContainerTargetEl__: HTMLDivElement | undefined;
-    #show__: boolean | undefined = false;
-    #content__: string | HTMLElement | HTMLElement[] | undefined = '';
-    #transitionStart__: ((e: TransitionEvent) => void) | undefined;
-    #transitionEnd__: ((e: TransitionEvent) => void) | undefined;
-    #isTransitioning__: boolean = false;
-    #container__: HTMLElement | undefined;
-    #area__: AreaOption = {};
-    #areaStartPoint: number[] = [0, 0];
-    #areaEndPoint: number[] = [0, 0];
-    #areaWidth: number = 0;
-    #areaHeight: number = 0;
+    /** z-index 计数的基础值,外部可在创建实例前修改,默认 999 */
+    static baseZIndex: number = 999;
+    /** 已分配的最大 z-index,保证后创建的实例叠在上层 */
+    private static zIndexCount: number = 0;
+    /** 当前处于挂载状态的实例,全部收起后用来重置 z-index 计数 */
+    private static mountedInstances = new Set<DumoguDropdownMenu>();
+    /** 最外层元素,覆盖整个定位空间 */
+    dropdownMenuEl: HTMLDivElement;
+    /** 定位容器元素,负责摆放位置、承载内容和过渡动画 */
+    dropdownMenuContainerEl: HTMLDivElement;
+    content: string | HTMLElement | undefined = '';
+    area: AreaOption = {};
+    container: HTMLElement | undefined;
+    displayAreaLimit: 'vertical' | 'horizontal' | '' = '';
+    offset: number = 0;
+    show: boolean = false;
+    isTransitioning: boolean = false;
+    private appliedContent?: string | HTMLElement;
+    private appliedContainer?: HTMLElement;
+    private handleTransitionStart = (e: TransitionEvent): void => {
+        if (!this.isOwnTransition(e)) return;
+        this.isTransitioning = true;
+    };
+    /** transitionend 与 transitioncancel 的统一处理:被打断时不会有 end 事件,同样复位并卸载 */
+    private handleTransitionFinish = (e: TransitionEvent): void => {
+        if (!this.isOwnTransition(e)) return;
+        this.isTransitioning = false;
+        if (!this.show) this.unmount();
+    };
     constructor(options: DumoguDropdownMenuOptions = {}) {
         super();
-        const dropdownMenuEl = document.createElement('div');
-        const dropdownMenuContainerEl = document.createElement('div');
-        const dropdownMenuContainerTargetEl = document.createElement('div');
-        addElementClass(dropdownMenuEl, 'dumogu-dropdown-menu-body');
-        addElementClass(dropdownMenuContainerEl, 'dumogu-dropdown-menu-body_container');
-        addElementClass(
-            dropdownMenuContainerTargetEl,
-            'dumogu-dropdown-menu-body_container_target',
-        );
-        dropdownMenuEl.appendChild(dropdownMenuContainerEl);
-        dropdownMenuContainerEl.appendChild(dropdownMenuContainerTargetEl);
-        this.#dropdownMenuEl__ = dropdownMenuEl;
-        this.#dropdownMenuContainerEl__ = dropdownMenuContainerEl;
-        this.#dropdownMenuContainerTargetEl__ = dropdownMenuContainerTargetEl;
-        this.#addEventListener();
+        this.dropdownMenuEl = document.createElement('div');
+        this.dropdownMenuContainerEl = document.createElement('div');
+        this.dropdownMenuEl.className = 'dumogu-dropdown-menu-body';
+        this.dropdownMenuContainerEl.className = 'dumogu-dropdown-menu-body_container';
+        this.dropdownMenuEl.appendChild(this.dropdownMenuContainerEl);
+        this.bindTransitionEvents();
+        this.content = options.content ?? '';
+        this.area = options.area || {};
         this.container = options.container;
-        this.content = options.content;
-        this.area = options.area;
-        this.show = options.show;
+        this.displayAreaLimit = options.displayAreaLimit || '';
+        this.offset = options.offset || 0;
+        this.show = !!options.show;
+        this.apply();
     }
-    set dropdownMenuEl(value: HTMLDivElement | undefined) {
-        this.#dropdownMenuEl__ = value;
-    }
-    get dropdownMenuEl() {
-        return this.#dropdownMenuEl__;
-    }
-    set dropdownMenuContainerEl(value: HTMLDivElement | undefined) {
-        this.#dropdownMenuContainerEl__ = value;
-    }
-    get dropdownMenuContainerEl() {
-        return this.#dropdownMenuContainerEl__;
-    }
-    set dropdownMenuContainerTargetEl(value: HTMLDivElement | undefined) {
-        this.#dropdownMenuContainerTargetEl__ = value;
-    }
-    get dropdownMenuContainerTargetEl() {
-        return this.#dropdownMenuContainerTargetEl__;
-    }
-    set show(value: boolean | undefined) {
+    /** 把属性状态同步到 DOM,修改属性后调用 */
+    apply(): void {
         if (this.isDestroyed) return;
-        this.#show__ = value;
-        if (value && !this.isMounted) {
-            this.mount();
-            this.#computedPosition();
-            // 刚挂载的元素不能直接设置类名来完成过渡动画
-            setTimeout(() => {
-                this.#setupActionClass();
-            }, 16);
-        } else {
-            this.#computedPosition();
-            this.#setupActionClass();
+        const containerEl = this.dropdownMenuContainerEl;
+        if (this.content !== this.appliedContent) {
+            if (typeof this.content === 'string') {
+                containerEl.innerHTML = this.content;
+            } else {
+                containerEl.innerHTML = '';
+                if (this.content) containerEl.appendChild(this.content);
+            }
+            this.appliedContent = this.content;
         }
-    }
-    get show() {
-        return this.#show__;
-    }
-    set content(value: string | HTMLElement | HTMLElement[] | undefined) {
-        this.#content__ = value;
-        this.#setupContent();
-    }
-    get content() {
-        return this.#content__;
-    }
-    set isTransitioning(value: boolean) {
-        this.#isTransitioning__ = value;
-        this.#autoUnmount();
-    }
-    get isTransitioning() {
-        return this.#isTransitioning__;
-    }
-    /**
-     * 设置挂载的容器元素
-     * @param {HTMLElement} [value] - 挂载的容器元素，不传时挂载到 body 上
-     */
-    set container(value: HTMLElement | undefined) {
-        this.#container__ = value;
-    }
-    get container() {
-        return this.#container__;
-    }
-    /**
-     * 设置用于计算位置的区域
-     * @param {Object} [value={}] - 区域的属性对象。
-     * @param {number[]} [value.start=[]] - 区域的起点坐标，格式为 `[x, y]`。
-     * @param {number[]} [value.end=[]] - 区域的终点坐标，格式为 `[x, y]`。
-     * @param {number} [value.width] - 区域的宽度。
-     * @param {number} [value.height] - 区域的高度。
-     */
-    set area(value: AreaOption | undefined) {
-        value = value || {};
-        this.#area__ = value;
-        this.#areaStartPoint = value.start || [];
-        this.#areaEndPoint = value.end || [];
-        this.#areaWidth = value.width || 0;
-        this.#areaHeight = value.height || 0;
-    }
-    get area() {
-        return this.#area__;
+        if (this.container !== this.appliedContainer) {
+            this.appliedContainer = this.container;
+            if (this.isMounted) this.mount();
+        }
+        if (this.show && !this.isMounted) {
+            this.mount();
+            // 同步强制布局，防止css动画不触发
+            containerEl.getBoundingClientRect();
+        }
+        this.applyPosition();
     }
     mount(): void {
         if (this.isDestroyed) return;
         super.mount();
-        const mountEl = this.#container__ || document.body;
-        mountEl.appendChild(this.#dropdownMenuEl__!);
-        // 需要先挂载再计算位置，#computedSpace 要测量面板实际覆盖的区域
-        this.#computedPosition();
+        DumoguDropdownMenu.mountedInstances.add(this);
+        // 每次挂载都重新领取 z-index,最近挂载的菜单叠在最上层
+        DumoguDropdownMenu.zIndexCount = Math.max(
+            DumoguDropdownMenu.baseZIndex,
+            DumoguDropdownMenu.zIndexCount + 1,
+        );
+        this.dropdownMenuEl.style.zIndex = `${DumoguDropdownMenu.zIndexCount}`;
+        (this.container || document.body).appendChild(this.dropdownMenuEl);
     }
     unmount(): void {
         if (this.isDestroyed) return;
         super.unmount();
-        removeElement(this.#dropdownMenuEl__!);
+        DumoguDropdownMenu.mountedInstances.delete(this);
+        // 全部菜单收起后把计数归零,下次从 baseZIndex 重新开始,避免长期只增不减
+        if (DumoguDropdownMenu.mountedInstances.size === 0) {
+            DumoguDropdownMenu.zIndexCount = 0;
+        }
+        removeElement(this.dropdownMenuEl);
     }
     destroy(): void {
         if (this.isDestroyed) return;
-        this.#removeEventListener();
+        this.unbindTransitionEvents();
         this.unmount();
-        this.content = undefined;
+        this.dropdownMenuContainerEl.innerHTML = '';
         super.destroy();
-        this.#dropdownMenuEl__ = undefined;
-        this.#dropdownMenuContainerEl__ = undefined;
-        this.#dropdownMenuContainerTargetEl__ = undefined;
-        this.#container__ = undefined;
     }
-    update(): void {
-        this.#computedPosition();
-    }
-    /** 添加类名 */
-    #setupActionClass(): void {
+    private applyPosition(): void {
         if (this.isDestroyed) return;
-        const dropdownMenuEl = this.#dropdownMenuEl__;
-        if (this.#show__) {
-            addElementClass(dropdownMenuEl!, 'dumogu-dropdown-menu-body_show');
-        } else {
-            removeElementClass(dropdownMenuEl!, 'dumogu-dropdown-menu-body_show');
-        }
-        // 挂载到非 body 的自定义容器上时添加的类名
-        if (this.#container__) {
-            addElementClass(dropdownMenuEl!, 'dumogu-dropdown-menu-body_custom-parent');
-        } else {
-            removeElementClass(dropdownMenuEl!, 'dumogu-dropdown-menu-body_custom-parent');
-        }
+        // 隐藏且未挂载时无需计算位置,也避免对游离元素触发强制 reflow
+        if (!this.show && !this.isMounted) return;
+        const dropdownMenuEl = this.dropdownMenuEl;
+        dropdownMenuEl.classList.toggle('dumogu-dropdown-menu-body_show', this.show);
+        dropdownMenuEl.classList.toggle(
+            'dumogu-dropdown-menu-body_custom-parent',
+            !!this.container,
+        );
+        const layout = this.computeLayout();
+        const containerEl = this.dropdownMenuContainerEl;
+        containerEl.style.width = layout.width + 'px';
+        containerEl.style.maxWidth = layout.width + 'px';
+        containerEl.style.height = layout.height + 'px';
+        containerEl.style.maxHeight = layout.height + 'px';
+        containerEl.style.left = layout.left + 'px';
+        containerEl.style.top = layout.top + 'px';
+        const anchorX = layout.x === 'left' ? 'right' : 'left';
+        const anchorY = layout.y === 'top' ? 'bottom' : 'top';
+        containerEl.classList.toggle(
+            'dumogu-dropdown-menu-body_container_align-left',
+            anchorX === 'left',
+        );
+        containerEl.classList.toggle(
+            'dumogu-dropdown-menu-body_container_align-right',
+            anchorX === 'right',
+        );
+        containerEl.classList.toggle(
+            'dumogu-dropdown-menu-body_container_align-top',
+            anchorY === 'top',
+        );
+        containerEl.classList.toggle(
+            'dumogu-dropdown-menu-body_container_align-bottom',
+            anchorY === 'bottom',
+        );
+        containerEl.style.transformOrigin = `${anchorX} ${anchorY}`;
     }
-    /** 添加内容 */
-    #setupContent(): void {
-        if (this.isDestroyed) return;
-        const dropdownMenuContainerTargetEl = this.#dropdownMenuContainerTargetEl__;
-        let content = this.#content__ || '';
-        if (typeof content === 'string') {
-            dropdownMenuContainerTargetEl!.innerHTML = content;
-            return;
-        } else if (!(content as HTMLElement[]).forEach) {
-            content = [content as HTMLElement];
-        }
-        dropdownMenuContainerTargetEl!.innerHTML = '';
-        (content as HTMLElement[]).forEach((el: HTMLElement) => {
-            dropdownMenuContainerTargetEl!.appendChild(el);
-        });
-    }
-    /** 自动卸载 */
-    #autoUnmount(): void {
-        if (!this.#isTransitioning__ && !this.#show__) {
-            this.unmount();
-        }
-    }
-    #transitionstart(e: TransitionEvent): void {
-        if (!e || e.propertyName !== 'transform' || e.target !== this.#dropdownMenuContainerEl__)
-            return;
-        this.isTransitioning = true;
-    }
-    #transitionEnd(e: TransitionEvent): void {
-        if (!e || e.propertyName !== 'transform' || e.target !== this.#dropdownMenuContainerEl__)
-            return;
-        this.isTransitioning = false;
-    }
-    #addEventListener(): void {
-        const dropdownMenuContainerEl = this.#dropdownMenuContainerEl__;
-        const that = this;
-        that.#transitionStart__ = function (e: TransitionEvent) {
-            that.#transitionstart(e);
-        };
-        that.#transitionEnd__ = function (e: TransitionEvent) {
-            that.#transitionEnd(e);
-        };
-        dropdownMenuContainerEl!.addEventListener('transitionstart', that.#transitionStart__!);
-        dropdownMenuContainerEl!.addEventListener('transitionend', that.#transitionEnd__!);
-    }
-    #removeEventListener(): void {
-        const dropdownMenuContainerEl = this.#dropdownMenuContainerEl__;
-        dropdownMenuContainerEl!.removeEventListener('transitionstart', this.#transitionStart__!);
-        dropdownMenuContainerEl!.removeEventListener('transitionend', this.#transitionEnd__!);
-    }
-    /** 计算位置 */
-    #computedPosition(): void {
-        if (this.isDestroyed) return;
-        if (!this.#show__) return;
-        const dropdownMenuContainerEl = this.#dropdownMenuContainerEl__;
-        const dropdownMenuContainerTargetEl = this.#dropdownMenuContainerTargetEl__;
-        const position = this.#computeContainerStyle();
-        dropdownMenuContainerEl!.style.width = position.containerWidth + 'px';
-        dropdownMenuContainerEl!.style.height = position.containerHeight + 'px';
-        dropdownMenuContainerEl!.style.left = position.transformX + 'px';
-        dropdownMenuContainerEl!.style.top = position.transformY + 'px';
-        dropdownMenuContainerTargetEl!.style.position = 'absolute';
-        dropdownMenuContainerTargetEl!.style.top = 'initial';
-        dropdownMenuContainerTargetEl!.style.right = 'initial';
-        dropdownMenuContainerTargetEl!.style.bottom = 'initial';
-        dropdownMenuContainerTargetEl!.style.left = 'initial';
-        switch (true) {
-            case position.x == 'left' && position.y == 'top':
-                dropdownMenuContainerTargetEl!.style.right = '0px';
-                dropdownMenuContainerTargetEl!.style.bottom = '0px';
-                dropdownMenuContainerEl!.style.transformOrigin = 'right bottom';
-                break;
-            case position.x == 'right' && position.y == 'top':
-                dropdownMenuContainerTargetEl!.style.bottom = '0px';
-                dropdownMenuContainerTargetEl!.style.left = '0px';
-                dropdownMenuContainerEl!.style.transformOrigin = 'left bottom';
-                break;
-            case position.x == 'right' && position.y == 'bottom':
-                dropdownMenuContainerTargetEl!.style.top = '0px';
-                dropdownMenuContainerTargetEl!.style.left = '0px';
-                dropdownMenuContainerEl!.style.transformOrigin = 'left top';
-                break;
-            case position.x == 'left' && position.y == 'bottom':
-                dropdownMenuContainerTargetEl!.style.top = '0px';
-                dropdownMenuContainerTargetEl!.style.right = '0px';
-                dropdownMenuContainerEl!.style.transformOrigin = 'right top';
-                break;
-            default:
-                break;
-        }
-    }
-    /**
-     * 计算用于定位的空间，挂载到自定义容器时直接测量面板自身覆盖的区域，
-     * 否则以视口为准，并把区域坐标转换为该空间内的坐标
-     */
-    #computedSpace() {
-        const dropdownMenuEl = this.#dropdownMenuEl__;
+    private computeLayout(): Layout {
+        const area = this.area;
+        const areaStart = area.start || [0, 0];
+        const areaEnd = area.end || [0, 0];
         let offsetX = 0;
         let offsetY = 0;
-        let innerWidth = window.innerWidth;
-        let innerHeight = window.innerHeight;
-        if (this.#container__ && dropdownMenuEl) {
-            const dropdownMenuRect = dropdownMenuEl.getBoundingClientRect();
-            offsetX = dropdownMenuRect.left;
-            offsetY = dropdownMenuRect.top;
-            innerWidth = dropdownMenuRect.width;
-            innerHeight = dropdownMenuRect.height;
+        let spaceWidth = window.innerWidth;
+        let spaceHeight = window.innerHeight;
+        if (this.container) {
+            const rect = this.dropdownMenuEl.getBoundingClientRect();
+            offsetX = rect.left;
+            offsetY = rect.top;
+            spaceWidth = rect.width;
+            spaceHeight = rect.height;
         }
-        const areaStartPoint = this.#areaStartPoint;
-        const areaEndPoint = this.#areaEndPoint;
-        return {
-            innerWidth,
-            innerHeight,
-            areaStartPoint: [areaStartPoint[0] - offsetX, areaStartPoint[1] - offsetY],
-            areaEndPoint: [areaEndPoint[0] - offsetX, areaEndPoint[1] - offsetY],
-        };
+        const start = [areaStart[0] - offsetX, areaStart[1] - offsetY];
+        const end = [areaEnd[0] - offsetX, areaEnd[1] - offsetY];
+        const spareLeft = start[0];
+        const spareRight = spaceWidth - end[0];
+        const spareTop = start[1];
+        const spareBottom = spaceHeight - end[1];
+        const x = spareRight > spareLeft ? 'right' : 'left';
+        const y = spareBottom > spareTop ? 'bottom' : 'top';
+        // 区域宽高比大于空间宽高比时以纵向为主,否则以横向为主
+        const targetSlope = Math.abs((area.width || 0) / (area.height || 0));
+        const horizontal = x === 'left' ? end[0] : spaceWidth - start[0];
+        const vertical = y === 'top' ? start[1] : spaceHeight - start[1];
+        let ratio: 'x' | 'y';
+        if (this.displayAreaLimit === 'vertical') ratio = 'y';
+        else if (this.displayAreaLimit === 'horizontal') ratio = 'x';
+        else ratio = targetSlope > Math.abs(horizontal / vertical) ? 'y' : 'x';
+        // 横向为主时宽取展开侧的剩余空间,纵向为主时高取展开侧的剩余空间,另一边从空间边界包到区域远端
+        const widthX = x === 'left' ? spareLeft : spareRight;
+        const widthY = horizontal;
+        const heightX = y === 'top' ? end[1] : spaceHeight - start[1];
+        const heightY = y === 'top' ? spareTop : spareBottom;
+        // 与触发区域保持 offset 距离:只作用于贴近触发区域的主轴方向,与区域对齐的方向保持贴合
+        // 剩余空间不足 offset 时收缩到 0,位移随之钳制,保证不越出定位空间;负值按 0 处理
+        const offset = Math.max(this.offset, 0);
+        const offsetWidth = ratio === 'x' ? offset : 0;
+        const offsetHeight = ratio === 'y' ? offset : 0;
+        const baseWidth = ratio === 'x' ? widthX : widthY;
+        const baseHeight = ratio === 'x' ? heightX : heightY;
+        const width = Math.max(baseWidth - offsetWidth, 0);
+        const height = Math.max(baseHeight - offsetHeight, 0);
+        const left =
+            x === 'right' ? Math.min(spaceWidth - baseWidth + offsetWidth, spaceWidth - width) : 0;
+        const top =
+            y === 'bottom'
+                ? Math.min(spaceHeight - baseHeight + offsetHeight, spaceHeight - height)
+                : 0;
+        return { x, y, width, height, left, top };
     }
-    /** 计算空余，判断元素的那个方向有空余 */
-    #computeSpare() {
-        const { innerWidth, innerHeight, areaStartPoint, areaEndPoint } = this.#computedSpace();
-        let x = 'left';
-        if (innerWidth - areaEndPoint[0] > areaStartPoint[0]) {
-            x = 'right';
-        }
-        let y = 'top';
-        if (innerHeight - areaEndPoint[1] > areaStartPoint[1]) {
-            y = 'bottom';
-        }
-        return {
-            x,
-            y,
-        };
+    private isOwnTransition(e: TransitionEvent): boolean {
+        return !!e && e.propertyName === 'transform' && e.target === this.dropdownMenuContainerEl;
     }
-    /** 计算精度，更靠近那个方向 */
-    #computeSpareTo() {
-        const { innerWidth, innerHeight, areaStartPoint, areaEndPoint } = this.#computedSpace();
-        const areaWidth = this.#areaWidth;
-        const areaHeight = this.#areaHeight;
-        const position = this.#computeSpare();
-        let ratio = '';
-        let targetSlope = Math.abs(areaWidth / areaHeight);
-        let containerSlope = 0;
-        if (position.x === 'left' && position.y === 'top') {
-            containerSlope = Math.abs(areaEndPoint[0] / areaStartPoint[1]);
-        }
-        if (position.x === 'right' && position.y === 'top') {
-            containerSlope = Math.abs((innerWidth - areaStartPoint[0]) / areaStartPoint[1]);
-        }
-        if (position.x === 'left' && position.y === 'bottom') {
-            containerSlope = Math.abs(areaEndPoint[0] / (innerHeight - areaStartPoint[1]));
-        }
-        if (position.x === 'right' && position.y === 'bottom') {
-            containerSlope = Math.abs(
-                (innerWidth - areaStartPoint[0]) / (innerHeight - areaStartPoint[1]),
-            );
-        }
-        if (targetSlope > containerSlope) {
-            ratio = 'y';
-        } else {
-            ratio = 'x';
-        }
-        return {
-            ...position,
-            ratio,
-        };
+    private bindTransitionEvents(): void {
+        const containerEl = this.dropdownMenuContainerEl;
+        containerEl.addEventListener('transitionstart', this.handleTransitionStart);
+        containerEl.addEventListener('transitionend', this.handleTransitionFinish);
+        containerEl.addEventListener('transitioncancel', this.handleTransitionFinish);
     }
-    /** 计算容器位置，宽高 */
-    #computeContainerStyle() {
-        const { innerWidth, innerHeight, areaStartPoint, areaEndPoint } = this.#computedSpace();
-        const position = this.#computeSpareTo();
-        let containerWidth = 0;
-        let containerHeight = 0;
-        let transformY = 0;
-        let transformX = 0;
-        if (position.x === 'left' && position.y === 'top') {
-            if (position.ratio == 'x') {
-                containerWidth = areaStartPoint[0];
-                containerHeight = areaEndPoint[1];
-            } else {
-                containerWidth = areaEndPoint[0];
-                containerHeight = areaStartPoint[1];
-            }
-        }
-        if (position.x === 'right' && position.y === 'top') {
-            if (position.ratio == 'x') {
-                containerWidth = innerWidth - areaEndPoint[0];
-                containerHeight = areaEndPoint[1];
-            } else {
-                containerWidth = innerWidth - areaStartPoint[0];
-                containerHeight = areaStartPoint[1];
-            }
-            transformX = innerWidth - containerWidth;
-        }
-        if (position.x === 'left' && position.y === 'bottom') {
-            if (position.ratio == 'x') {
-                containerWidth = areaStartPoint[0];
-                containerHeight = innerHeight - areaStartPoint[1];
-            } else {
-                containerWidth = areaEndPoint[0];
-                containerHeight = innerHeight - areaEndPoint[1];
-            }
-            transformY = innerHeight - containerHeight;
-        }
-        if (position.x === 'right' && position.y === 'bottom') {
-            if (position.ratio == 'x') {
-                containerWidth = innerWidth - areaEndPoint[0];
-                containerHeight = innerHeight - areaStartPoint[1];
-            } else {
-                containerWidth = innerWidth - areaStartPoint[0];
-                containerHeight = innerHeight - areaEndPoint[1];
-            }
-            transformX = innerWidth - containerWidth;
-            transformY = innerHeight - containerHeight;
-        }
-        return {
-            ...position,
-            containerWidth,
-            containerHeight,
-            transformX,
-            transformY,
-        };
+    private unbindTransitionEvents(): void {
+        const containerEl = this.dropdownMenuContainerEl;
+        containerEl.removeEventListener('transitionstart', this.handleTransitionStart);
+        containerEl.removeEventListener('transitionend', this.handleTransitionFinish);
+        containerEl.removeEventListener('transitioncancel', this.handleTransitionFinish);
     }
 }

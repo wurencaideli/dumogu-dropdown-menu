@@ -25,6 +25,16 @@
                 width: max-content;
                 cursor: pointer;
             }
+            .dumogu-dropdown-menu-demo > .container > .bt-group {
+                position: absolute;
+                left: 50vw;
+                top: calc(50vh + 40px);
+                display: flex;
+                gap: 10px;
+            }
+            .dumogu-dropdown-menu-demo > .container > .bt-group > button {
+                cursor: pointer;
+            }
             /** 挂载到自定义容器的示例，容器需要是非 static 定位 */
             .dumogu-dropdown-menu-demo > .box {
                 position: relative;
@@ -41,8 +51,40 @@
                 width: max-content;
                 cursor: pointer;
             }
-            .dumogu-dropdown-menu-body_container_target {
-                background-color: black;
+            /** demo 自定义的菜单样式,库本身不提供主题 */
+            .demo-theme {
+                min-width: 150px;
+                display: flex;
+                flex-direction: column;
+                width: max-content;
+                box-sizing: border-box;
+                background-color: #1f1f23;
+                box-shadow:
+                    0 4px 8px rgba(0, 0, 0, 0.4),
+                    0 0px 4px rgba(0, 0, 0, 0.4);
+                border: 1px solid #ffffff1d;
+                border-radius: 8px;
+            }
+            .demo-theme_item {
+                min-width: 150px;
+                display: flex;
+                align-items: center;
+                padding: 15px 25px;
+                box-sizing: border-box;
+                font-size: 13px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.2s;
+                color: rgb(206, 206, 206);
+                border-bottom: 1px solid #ffffff1d;
+                line-height: 1;
+            }
+            .demo-theme_item:hover {
+                background-color: rgba(145, 145, 162, 0.17);
+                color: #007fff;
+            }
+            .demo-theme_item:last-child {
+                border-bottom: none;
             }
         </style>
         <script>
@@ -61,76 +103,110 @@
                     return area;
                 }
                 const ddInstance = new DumoguDropdownMenu({
-                    // 可以是html文本
+                    // 可以是html文本，样式完全由使用方自定义
                     content: `
-                        <div class="dumogu-dropdown-menu-theme_item"> 测试 </div>
-                        <div class="dumogu-dropdown-menu-theme_item"> 测试 </div>
-                        <div class="dumogu-dropdown-menu-theme_item"> 测试 </div>
+                        <div class="demo-theme">
+                            <div class="demo-theme_item"> 测试 </div>
+                            <div class="demo-theme_item"> 测试 </div>
+                            <div class="demo-theme_item"> 测试 </div>
+                        </div>
                     `,
                     area: getArea(btEl),
                     show: true,
                 });
-                ddInstance.dropdownMenuContainerTargetEl.classList.add(
-                    'dumogu-dropdown-menu-theme',
-                );
-                ddInstance.targetEl = btEl;
                 btEl.addEventListener('click', () => {
                     if (!ddInstance.show) {
                         // 可以是element对象
                         const item_1 = document.createElement('div');
-                        item_1.innerHTML = '测试';
-                        item_1.classList.add('dumogu-dropdown-menu-theme_item');
-                        item_1.onclick = () => {
+                        item_1.classList.add('demo-theme');
+                        const item_1_child = document.createElement('div');
+                        item_1_child.innerHTML = '测试';
+                        item_1_child.classList.add('demo-theme_item');
+                        item_1_child.onclick = () => {
                             ddInstance.show = false;
+                            ddInstance.apply();
                             console.log('所绑定的数据：', { test: 1 });
                         };
-                        const item_2 = document.createElement('div');
-                        item_2.innerHTML = '测试';
-                        item_2.classList.add('dumogu-dropdown-menu-theme_item');
-                        ddInstance.content = [item_1, item_2];
+                        item_1.appendChild(item_1_child);
+                        ddInstance.content = item_1;
                     }
                     ddInstance.area = getArea(btEl); // 设置需要显示的区域
                     ddInstance.show = !ddInstance.show; // 显示/隐藏菜单
+                    ddInstance.apply(); // 属性写入后同步到 DOM
                 });
-                ddInstanceList.push(ddInstance);
-                /** 挂载到自定义容器的示例，不传 container 时挂载到 body 上 */
-                const boxEl = document.getElementById('box');
-                const boxBtEl = document.getElementById('box-bt');
-                const boxDdInstance = new DumoguDropdownMenu({
-                    container: boxEl,
-                    content: `
-                        <div class="dumogu-dropdown-menu-theme_item"> 容器内测试 </div>
-                        <div class="dumogu-dropdown-menu-theme_item"> 容器内测试 </div>
-                    `,
-                    area: getArea(boxBtEl),
-                    show: true,
-                });
-                boxDdInstance.dropdownMenuContainerTargetEl.classList.add(
-                    'dumogu-dropdown-menu-theme',
-                );
-                boxDdInstance.targetEl = boxBtEl;
-                boxBtEl.addEventListener('click', () => {
-                    boxDdInstance.area = getArea(boxBtEl);
-                    boxDdInstance.show = !boxDdInstance.show;
-                });
-                ddInstanceList.push(boxDdInstance);
+                ddInstanceList.push([ddInstance, btEl]);
                 /** 初始化隐藏事件，点击页面的其他地方可以隐藏菜单 */
-                function initHiddenEvent(ddInstance_) {
+                function initHiddenEvent(ddInstance_, btEl_) {
                     function callbackFn(e) {
                         if (!e || !e.target) return;
                         if (!ddInstance_.show) return;
                         if (ddInstance_.isDestroyed) return;
                         if (
-                            !ddInstance_.dropdownMenuContainerTargetEl.contains(e.target) &&
-                            !ddInstance_.targetEl.contains(e.target)
+                            !ddInstance_.dropdownMenuContainerEl.contains(e.target) &&
+                            !btEl_.contains(e.target)
                         ) {
                             ddInstance_.show = false;
+                            ddInstance_.apply();
                         }
                     }
                     document.addEventListener('click', callbackFn);
                 }
-                initHiddenEvent(ddInstance);
-                initHiddenEvent(boxDdInstance);
+                /** 创建实例并绑定显示/隐藏、隐藏事件和位置更新 */
+                function createMenu(btEl_, options) {
+                    const ddInstance_ = new DumoguDropdownMenu({
+                        area: getArea(btEl_),
+                        show: true,
+                        ...options,
+                    });
+                    btEl_.addEventListener('click', () => {
+                        ddInstance_.area = getArea(btEl_);
+                        ddInstance_.show = !ddInstance_.show;
+                        ddInstance_.apply();
+                    });
+                    ddInstanceList.push([ddInstance_, btEl_]);
+                    initHiddenEvent(ddInstance_, btEl_);
+                    return ddInstance_;
+                }
+                initHiddenEvent(ddInstance, btEl);
+                /** 挂载到自定义容器的示例，不传 container 时挂载到 body 上 */
+                createMenu(document.getElementById('box-bt'), {
+                    container: document.getElementById('box'),
+                    content: `
+                        <div class="demo-theme">
+                            <div class="demo-theme_item"> 容器内测试 </div>
+                            <div class="demo-theme_item"> 容器内测试 </div>
+                        </div>
+                    `,
+                });
+                /** offset 示例：与触发区域边缘保持 12px 距离 */
+                createMenu(document.getElementById('bt-offset'), {
+                    offset: 12,
+                    content: `
+                        <div class="demo-theme">
+                            <div class="demo-theme_item"> 间距 12px </div>
+                        </div>
+                    `,
+                });
+                /** displayAreaLimit 示例：'vertical' 强制以纵向为主 */
+                createMenu(document.getElementById('bt-vertical'), {
+                    displayAreaLimit: 'vertical',
+                    content: `
+                        <div class="demo-theme">
+                            <div class="demo-theme_item"> 垂直显示 </div>
+                            <div class="demo-theme_item"> 垂直显示 </div>
+                        </div>
+                    `,
+                });
+                /** displayAreaLimit 示例：'horizontal' 强制以横向为主 */
+                createMenu(document.getElementById('bt-horizontal'), {
+                    displayAreaLimit: 'horizontal',
+                    content: `
+                        <div class="demo-theme">
+                            <div class="demo-theme_item"> 水平显示 </div>
+                            <div class="demo-theme_item"> 水平显示 </div>
+                        </div>
+                    `,
+                });
                 window.ddInstance = ddInstance;
                 /**
                  * 每一帧更新位置
@@ -138,9 +214,9 @@
                  */
                 function updateDdInstance() {
                     requestAnimationFrame(() => {
-                        ddInstanceList.forEach((item) => {
-                            item.area = getArea(item.targetEl);
-                            item.update();
+                        ddInstanceList.forEach(([item, itemBtEl]) => {
+                            item.area = getArea(itemBtEl);
+                            item.apply();
                         });
                         updateDdInstance();
                     });
@@ -162,6 +238,11 @@
             <div class="container">
                 <div>完全由用户定义显示位置，显示时机，请滚动页面找到按钮点击查看。</div>
                 <button id="bt" class="bt">测试</button>
+                <div class="bt-group">
+                    <button id="bt-offset">间距测试</button>
+                    <button id="bt-vertical">垂直显示</button>
+                    <button id="bt-horizontal">水平显示</button>
+                </div>
             </div>
             <div id="box" class="box">
                 <button id="box-bt" class="bt">容器内测试</button>

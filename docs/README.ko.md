@@ -10,7 +10,8 @@ dumogu-dropdown-menu는 번들 후 5KB 미만의 경량 JavaScript 드롭다운 
 
 - **초경량**: 번들 후 < 5KB, 의존성 없음
 - **스타일 무침범**: 라이브러리는 위치 계산과 전환 애니메이션만 처리하며, 메뉴 스타일은 전적으로 사용자가 결정합니다
-- **자동 위치 결정**: 대상 요소의 뷰포트 내 위치를 기준으로 최적의 확장 방향을 자동으로 판단합니다 (4방향 + 정밀도 최적화)
+- **자동 위치 결정**: 대상 영역의 뷰포트 내 위치를 기준으로 최적의 확장 방향을 자동으로 판단하고, 영역의 가로세로 비율에 따라 주 축을 자동 선택합니다
+- **방향 제어**: `displayAreaLimit`로 세로/가로 확장을 강제하고, `offset`으로 대상 영역과의 간격을 유지할 수 있습니다
 - **내장 전환 애니메이션**: CSS 클래스 토글로 트리거되는 스케일 + 투명도 전환 애니메이션
 - **TypeScript 지원**: 완전한 타입 선언 포함
 - **다중 포맷 출력**: ESM, CJS, UMD 빌드 제공
@@ -55,7 +56,7 @@ const { DumoguDropdownMenu } = require('dumogu-dropdown-menu');
 import { DumoguDropdownMenu } from 'dumogu-dropdown-menu';
 import 'dumogu-dropdown-menu/dist/dumogu-dropdown-menu.css';
 
-// 트리거 버튼의 경계 사각형 가져오기
+// 트리거 버튼의 영역 가져오기
 const btEl = document.getElementById('my-button');
 
 function getArea(el) {
@@ -68,25 +69,22 @@ function getArea(el) {
     };
 }
 
-// 인스턴스 생성
+// 인스턴스 생성 (즉시 표시)
 const ddInstance = new DumoguDropdownMenu({
     content: '<div class="my-menu-item">메뉴 항목 1</div>',
     area: getArea(btEl),
     show: true,
 });
 
-// 기본 테마 클래스 추가 (선택 사항 — 완전히 커스텀 스타일을 사용할 수도 있습니다)
-ddInstance.dropdownMenuContainerTargetEl.classList.add('dumogu-dropdown-menu-theme');
-
-// 이후 위치 업데이트를 위해 트리거 요소 참조 저장
-ddInstance.targetEl = btEl;
-
-// 버튼 클릭 시 표시/숨김 토글
+// 버튼 클릭으로 표시/숨김 토글
 btEl.addEventListener('click', () => {
-    ddInstance.area = getArea(btEl);
+    ddInstance.area = getArea(btEl); // 대상 영역 갱신
     ddInstance.show = !ddInstance.show;
+    ddInstance.apply(); // 속성 변경을 DOM에 반영
 });
 ```
+
+> **핵심 사용법**: 인스턴스는 일반 속성(`content`, `area`, `show`, `container`, `displayAreaLimit`, `offset`)을 노출합니다. 값을 할당한 뒤 `apply()`를 호출하면 모두 DOM에 반영됩니다. setter 메서드는 없습니다.
 
 ---
 
@@ -94,104 +92,77 @@ btEl.addEventListener('click', () => {
 
 ### `new DumoguDropdownMenu(options)`
 
-새로운 드롭다운 메뉴 인스턴스를 생성합니다.
+새 드롭다운 메뉴 인스턴스를 생성합니다.
 
 **`options` 매개변수:**
 
-| 매개변수   | 타입                                      | 기본값  | 설명                                                |
-| ---------   | ----------------------------------------- | ------- | ---------------------------------------------------------- |
-| `content`   | `string \| HTMLElement \| HTMLElement[]`   | `''`    | 메뉴 콘텐츠 — HTML 문자열, 단일 DOM 요소 또는 요소 배열 |
-| `area`      | `AreaOption`                              | `{}`    | 메뉴가 확장될 위치를 계산하는 데 사용되는 대상 영역    |
-| `show`      | `boolean`                                 | `false` | 메뉴를 즉시 표시할지 여부                       |
-| `container` | `HTMLElement`                             | —       | 메뉴를 마운트할 요소; 생략하면 `document.body`에 마운트됩니다. 컨테이너는 static이 아닌 position(예: `position: relative`)이어야 합니다 |
+| 매개변수           | 타입                                    | 기본값  | 설명 |
+| ------------------ | --------------------------------------- | ------- | ---- |
+| `content`          | `string \| HTMLElement`                 | `''`    | 메뉴 콘텐츠 — HTML 문자열 또는 단일 DOM 요소 |
+| `area`             | `AreaOption`                            | `{}`    | 메뉴가 확장될 위치를 계산하는 대상 영역 |
+| `show`             | `boolean`                               | `false` | 즉시 표시할지 여부 |
+| `container`        | `HTMLElement`                           | —       | 메뉴를 마운트할 요소; 생략 시 `document.body`에 마운트됩니다. 컨테이너는 non-static 포지셔닝이어야 합니다 (예: `position: relative`) |
+| `displayAreaLimit` | `'vertical' \| 'horizontal' \| ''`      | `''`    | 주 크기 축 강제: `'vertical'`은 높이 기준, `'horizontal'`은 너비 기준; 비워 두면 영역의 가로세로 비율로 자동 판단합니다 |
+| `offset`           | `number`                                | `0`     | 주축을 따라 메뉴와 대상 영역 사이에 유지할 간격(px); 음수는 0으로 취급됩니다 |
 
 **`AreaOption` 타입:**
 
-| 속성    | 타입       | 설명                                              |
-| -------- | ---------- | -------------------------------------------------------- |
-| `start`  | `number[]` | 대상 영역의 왼쪽 위 좌표 `[x, y]` (뷰포트 기준) |
-| `end`    | `number[]` | 대상 영역의 오른쪽 아래 좌표 `[x, y]` (뷰포트 기준) |
-| `width`  | `number`   | 대상 영역의 너비                                  |
-| `height` | `number`   | 대상 영역의 높이                                 |
+| 속성     | 타입                   | 설명 |
+| -------- | ---------------------- | ---- |
+| `start`  | `[number, number]`     | 대상 영역의 왼쪽 위 좌표 `[x, y]` (뷰포트 좌표) |
+| `end`    | `[number, number]`     | 대상 영역의 오른쪽 아래 좌표 `[x, y]` (뷰포트 좌표) |
+| `width`  | `number`               | 대상 영역의 너비 — 자동 모드에서 가로세로 비율 비교에 사용 |
+| `height` | `number`               | 대상 영역의 높이 |
+
+---
+
+### 정적 속성
+
+#### `DumoguDropdownMenu.baseZIndex`
+
+z-index 카운터의 기본값, 기본 `999`. 마운트될 때마다 다음 번호를 받아 나중에 열린 메뉴가 위에 쌓입니다. `999`가 페이지 레이어와 충돌하면 인스턴스 생성/표시 전에 변경하세요. 마운트된 메뉴가 하나도 없으면 카운터는 기본값으로 초기화됩니다.
 
 ---
 
 ### 인스턴스 속성
 
+모든 속성은 일반 필드입니다: 새 값을 할당한 뒤 `apply()`를 호출하세요.
+
 #### `show`
 
-메뉴 표시 여부를 가져오거나 설정합니다.
-
-```javascript
-// 메뉴 표시
-ddInstance.show = true;
-
-// 메뉴 숨김
-ddInstance.show = false;
-
-// 토글
-ddInstance.show = !ddInstance.show;
-
-// 현재 상태 읽기
-console.log(ddInstance.show); // true | false
-```
+메뉴가 표시 중(또는 표시 예정)인지 여부. 타입: `boolean`.
 
 #### `content`
 
-메뉴 콘텐츠를 가져오거나 설정합니다. 세 가지 타입을 지원합니다:
-
-```javascript
-// 1. HTML 문자열
-ddInstance.content = '<div class="item">메뉴 항목</div>';
-
-// 2. 단일 DOM 요소
-const el = document.createElement('div');
-el.textContent = '메뉴 항목';
-ddInstance.content = el;
-
-// 3. DOM 요소 배열
-const items = [el1, el2, el3];
-ddInstance.content = items;
-```
-
-`content`를 설정하면 DOM이 즉시 업데이트됩니다.
+현재 메뉴 콘텐츠. 타입: `string | HTMLElement | undefined`. 외부에서 요소가 이동된 경우 동일한 참조를 다시 할당하면 다시 마운트됩니다.
 
 #### `area`
 
-위치 계산에 사용되는 대상 영역을 가져오거나 설정합니다. 메뉴는 이 영역과 뷰포트 크기를 기준으로 확장 방향과 크기를 계산합니다.
-
-```javascript
-ddInstance.area = {
-    start: [100, 200],  // 트리거 요소의 왼쪽 위
-    end: [300, 250],    // 트리거 요소의 오른쪽 아래
-    width: 200,         // 요소 너비
-    height: 50,         // 요소 높이
-};
-```
+위치 계산에 사용되는 현재 대상 영역. 타입: `AreaOption`. 좌표는 커스텀 `container`를 사용하더라도 항상 뷰포트 기준입니다 — 라이브러리가 자동으로 변환합니다.
 
 #### `container`
 
-메뉴가 마운트될 요소를 가져오거나 설정합니다. 설정하지 않으면(또는 `undefined`로 설정하면) `document.body`에 마운트되고, 설정하면 해당 요소에 마운트되며 루트 요소에 `.dumogu-dropdown-menu-body_custom-parent` 클래스가 추가됩니다. 마운트된 상태에서 컨테이너를 변경하면 메뉴가 즉시 이동합니다.
+현재 마운트 요소 — `undefined`는 `document.body`를 의미합니다. 마운트된 상태에서 변경하면 다음 `apply()` 때 즉시 이동합니다.
 
-```javascript
-const ddInstance = new DumoguDropdownMenu({
-    container: document.getElementById('my-panel'), // #my-panel에 마운트
-    // ...
-});
+#### `displayAreaLimit`
 
-// 나중에: body로 다시 이동
-ddInstance.container = undefined;
-```
+현재 주축 강제 방향. 타입: `'vertical' | 'horizontal' | ''`.
 
-> **참고:** 커스텀 컨테이너는 static이 아닌 position(예: `position: relative`)이어야 합니다. 메뉴가 absolute 위치로 컨테이너를 `100%` × `100%` 채우기 때문입니다. 이 경우 뷰포트가 아닌 컨테이너 영역을 기준으로 위치가 계산됩니다 — `area` 좌표는 여전히 뷰포트 기준이므로 사용자 쪽에서 변경할 필요가 없습니다.
+#### `offset`
+
+주축을 따라 메뉴와 대상 영역 사이의 현재 간격(px). 타입: `number`.
+
+#### `isTransitioning`
+
+표시/숨김 전환이 진행 중인지 나타내는 플래그. 타입: `boolean`.
 
 #### `isMounted`
 
-읽기 전용. 메뉴가 현재 DOM에 마운트되어 있는지 나타냅니다. 타입: `boolean`.
+메뉴가 현재 DOM에 마운트되어 있는지 여부. 타입: `boolean`.
 
 #### `isDestroyed`
 
-읽기 전용. 인스턴스가 파괴되었는지 나타냅니다. 타입: `boolean`.
+인스턴스가 파괴되었는지 여부. 타입: `boolean`.
 
 ---
 
@@ -199,58 +170,48 @@ ddInstance.container = undefined;
 
 이 속성들은 커스텀 스타일링과 이벤트 처리를 위해 메뉴의 내부 DOM 구조에 직접 접근할 수 있게 합니다.
 
-| 속성                            | 타입               | 설명                                                          |
-| ------------------------------- | ------------------ | -------------------------------------------------------------------- |
-| `dropdownMenuEl`                | `HTMLDivElement`   | 최외층 컨테이너, fixed 전체 화면, `pointer-events: none`       |
-| `dropdownMenuContainerEl`       | `HTMLDivElement`   | 위치 컨테이너, transform 애니메이션과 배치 처리     |
-| `dropdownMenuContainerTargetEl` | `HTMLDivElement`   | 콘텐츠 컨테이너, 사용자가 제공한 `content`를 담음, `pointer-events: auto` |
+| 속성                      | 타입             | 설명 |
+| ------------------------- | ---------------- | ---- |
+| `dropdownMenuEl`          | `HTMLDivElement` | 최외곽 요소, 뷰포트 전체(또는 커스텀 컨테이너 전체)를 덮음, `pointer-events: none` |
+| `dropdownMenuContainerEl` | `HTMLDivElement` | 위치 컨테이너, 배치·콘텐츠 정렬·전환 애니메이션 담당 |
 
 **DOM 구조:**
 
 ```
-dropdownMenuEl (fixed 전체 화면 레이어, pointer-events: none)
-└── dropdownMenuContainerEl (위치 지정 + transform 애니메이션)
-    └── dropdownMenuContainerTargetEl (콘텐츠 래퍼, pointer-events: auto)
-        └── [사용자가 제공한 콘텐츠]
+dropdownMenuEl (fixed 뷰포트 전체 레이어, pointer-events: none)
+└── dropdownMenuContainerEl (위치 + 전환 애니메이션 + 콘텐츠 정렬)
+    └── [사용자가 제공한 콘텐츠]
 ```
 
 ---
 
 ### 인스턴스 메서드
 
-#### `update()`
+#### `apply()`
 
-메뉴 위치를 수동으로 다시 계산하고 업데이트합니다. 대상 요소의 위치가 변경되었을 때 호출하세요 (예: 페이지 스크롤, 창 크기 조절, 레이아웃 변경).
+모든 속성 상태를 DOM에 동기화합니다: 콘텐츠, 마운트 컨테이너, 표시 여부, 위치. 속성을 변경한 후 호출하세요.
 
 ```javascript
-// requestAnimationFrame으로 위치 지속 추적
-function loop() {
-    requestAnimationFrame(() => {
-        ddInstance.area = getArea(btEl);
-        ddInstance.update();
-        loop();
-    });
-}
-loop();
+ddInstance.area = getArea(btEl);
+ddInstance.show = true;
+ddInstance.apply();
 ```
-
-> **왜 수동 업데이트인가?** 요소 위치는 다양한 이유로 변경될 수 있습니다 (스크롤, 레이아웃 변경, 애니메이션 등). 라이브러리가 모든 시나리오를 감시하는 것은 불가능하고 바람직하지도 않습니다. 사용자가 업데이트 시점을 결정하는 것이 가장 효율적인 방법입니다.
 
 #### `mount()`
 
-메뉴를 `container` 요소에 수동으로 마운트합니다 (컨테이너가 설정되지 않은 경우 `document.body`). `show = true` 설정 시 자동으로 호출되므로 직접 호출할 일은 거의 없습니다.
+메뉴를 `container` 요소(설정하지 않으면 `document.body`)에 수동으로 마운트합니다. 표시 시 자동으로 호출되므로 직접 호출할 일은 거의 없습니다.
 
 #### `unmount()`
 
-메뉴를 DOM에서 수동으로 제거합니다. `show === false`일 때 전환 애니메이션이 끝나면 자동으로 호출됩니다.
+메뉴를 DOM에서 수동으로 제거합니다. 숨김 전환이 끝나면 자동으로 호출됩니다 — 애니메이션이 비활성화된 경우에는 즉시 호출됩니다.
 
 #### `destroy()`
 
-인스턴스를 파괴하고 DOM 요소와 모든 이벤트 리스너를 제거합니다. 파괴 후에는 인스턴스를 사용해서는 안 됩니다.
+인스턴스를 파괴하고 DOM 요소와 모든 이벤트 리스너를 제거합니다. 파괴 후에는 인스턴스를 사용하면 안 됩니다.
 
 ```javascript
 ddInstance.destroy();
-// 이 후에는 ddInstance에 접근하지 마세요
+// 이후 ddInstance에 접근하지 마세요
 ```
 
 ---
@@ -259,42 +220,27 @@ ddInstance.destroy();
 
 라이브러리가 생성하는 핵심 클래스 이름:
 
-| 클래스                                         | 설명                                                    |
-| --------------------------------------------- | -------------------------------------------------------------- |
-| `.dumogu-dropdown-menu-body`                  | 최외층 컨테이너 (fixed 전체 화면, `pointer-events: none`) |
-| `.dumogu-dropdown-menu-body_show`            | 표시 상태 클래스 (body에 추가되어 애니메이션 트리거)           |
-| `.dumogu-dropdown-menu-body_custom-parent`   | 메뉴가 `document.body` 대신 커스텀 `container`에 마운트될 때 추가 (absolute, 컨테이너를 채움) |
-| `.dumogu-dropdown-menu-body_container`       | 위치 컨테이너 (absolute, transform 애니메이션 담당) |
-| `.dumogu-dropdown-menu-body_container_target` | 콘텐츠 컨테이너 (`overflow: auto`, `pointer-events: auto`)    |
+| 클래스                                         | 설명 |
+| ---------------------------------------------- | ---- |
+| `.dumogu-dropdown-menu-body`                   | 최외곽 컨테이너 (fixed 뷰포트 전체, `pointer-events: none`) |
+| `.dumogu-dropdown-menu-body_show`              | 표시 상태 클래스 (루트에 추가되어 애니메이션 트리거) |
+| `.dumogu-dropdown-menu-body_custom-parent`     | `document.body` 대신 커스텀 `container`에 마운트될 때 추가됨 (absolute, 컨테이너 전체 채움) |
+| `.dumogu-dropdown-menu-body_container`         | 위치 컨테이너 (absolute, 전환 애니메이션 호스팅) |
+| `.dumogu-dropdown-menu-body_container_align-left` / `_align-right` | 수평 콘텐츠 정렬 — 대상 영역에 가까운 쪽에 고정 |
+| `.dumogu-dropdown-menu-body_container_align-top` / `_align-bottom` | 수직 콘텐츠 정렬 — 대상 영역에 가까운 쪽에 고정 |
 
-### 기본 테마
-
-라이브러리는 `.dumogu-dropdown-menu-theme` 클래스로 활성화하는 선택적 테마를 제공합니다:
-
-```javascript
-ddInstance.dropdownMenuContainerTargetEl.classList.add('dumogu-dropdown-menu-theme');
-```
-
-테마 클래스 이름:
-
-| 클래스                                   | 설명                                |
-| ----------------------------------- | ------------------------------------------ |
-| `.dumogu-dropdown-menu-theme`       | 테마 컨테이너 (어두운 배경, 둥근 모서리, 그림자) |
-| `.dumogu-dropdown-menu-theme_item`  | 메뉴 항목 (호버 하이라이트)                |
-| `.dumogu-dropdown-menu-theme_active` | 활성/선택된 메뉴 항목 상태            |
-
-기본 테마를 완전히 건너뛰고 `dropdownMenuContainerTargetEl`에 직접 자신만의 스타일을 적용할 수도 있습니다.
+라이브러리는 **테마를 제공하지 않습니다**. 콘텐츠 스타일은 완전히 자유롭게; 위치 컨테이너의 직계 자식은 자동으로 `max-width/max-height: 100%`, `overflow: auto`, `pointer-events: initial`을 받습니다.
 
 ---
 
 ## 완전한 예제
 
-프로덕션에 사용할 수 있는 완전한 예제입니다:
+프로덕션에서 사용할 수 있는 예제입니다:
 
 - 버튼 클릭으로 메뉴 토글
 - 외부 클릭 시 닫기
 - 프레임 단위 위치 추적
-- 커스텀 데이터 바인딩이 있는 메뉴 항목
+- 데이터 바인딩된 메뉴 항목
 - 파괴 시 정리
 
 ```javascript
@@ -315,64 +261,56 @@ function getArea(el) {
 
 // 인스턴스 생성
 const ddInstance = new DumoguDropdownMenu({
-    content: `
-        <div class="dumogu-dropdown-menu-theme_item">메뉴 항목 1</div>
-        <div class="dumogu-dropdown-menu-theme_item">메뉴 항목 2</div>
-        <div class="dumogu-dropdown-menu-theme_item">메뉴 항목 3</div>
-    `,
     area: getArea(btEl),
     show: false,
+    offset: 12, // 버튼과 12px 간격 유지
 });
 
-// 기본 테마 적용
-ddInstance.dropdownMenuContainerTargetEl.classList.add('dumogu-dropdown-menu-theme');
-
-// 트리거 요소 참조 저장
-ddInstance.targetEl = btEl;
-
-// 버튼 클릭 시 토글
+// 버튼 클릭으로 토글
 btEl.addEventListener('click', () => {
     if (!ddInstance.show) {
-        // 데이터 바인딩이 있는 메뉴 항목 동적 생성
-        const item1 = document.createElement('div');
-        item1.textContent = '옵션 A';
-        item1.classList.add('dumogu-dropdown-menu-theme_item');
-        item1.onclick = () => {
-            ddInstance.show = false;
-            console.log('옵션 A 선택됨, 데이터:', { id: 1 });
-        };
-
-        const item2 = document.createElement('div');
-        item2.textContent = '옵션 B';
-        item2.classList.add('dumogu-dropdown-menu-theme_item');
-        item2.onclick = () => {
-            ddInstance.show = false;
-            console.log('옵션 B 선택됨, 데이터:', { id: 2 });
-        };
-
-        ddInstance.content = [item1, item2];
+        // 데이터 바인딩된 항목 동적 생성
+        const menu = document.createElement('div');
+        menu.className = 'my-menu';
+        [
+            { label: '옵션 A', data: { id: 1 } },
+            { label: '옵션 B', data: { id: 2 } },
+        ].forEach(({ label, data }) => {
+            const item = document.createElement('div');
+            item.className = 'my-menu_item';
+            item.textContent = label;
+            item.onclick = () => {
+                ddInstance.show = false;
+                ddInstance.apply();
+                console.log('선택됨:', data);
+            };
+            menu.appendChild(item);
+        });
+        ddInstance.content = menu;
     }
     ddInstance.area = getArea(btEl);
     ddInstance.show = !ddInstance.show;
+    ddInstance.apply();
 });
 
 // 외부 클릭 시 닫기
 document.addEventListener('click', (e) => {
     if (!ddInstance.show || ddInstance.isDestroyed) return;
     if (
-        !ddInstance.dropdownMenuContainerTargetEl.contains(e.target) &&
-        !ddInstance.targetEl.contains(e.target)
+        !ddInstance.dropdownMenuContainerEl.contains(e.target) &&
+        !btEl.contains(e.target)
     ) {
         ddInstance.show = false;
+        ddInstance.apply();
     }
 });
 
-// 버튼 위치 지속 추적
+// 버튼 위치를 프레임마다 추적
 function updateLoop() {
     requestAnimationFrame(() => {
         if (!ddInstance.isDestroyed) {
-            ddInstance.area = getArea(ddInstance.targetEl);
-            ddInstance.update();
+            ddInstance.area = getArea(btEl);
+            ddInstance.apply();
             updateLoop();
         }
     });
@@ -389,29 +327,41 @@ window.addEventListener('beforeunload', () => {
 
 ## 위치 계산
 
-메뉴의 확장 방향은 두 단계로 결정됩니다:
+메뉴의 방향과 크기는 두 단계로 결정됩니다:
 
-1. **방향 감지** — 대상 요소의 양쪽 남은 공간을 비교합니다. 메뉴는 공간이 더 많은 쪽으로 열립니다:
-   - 수평: `오른쪽 공간 > 왼쪽 공간`이면 오른쪽으로 확장, 그렇지 않으면 왼쪽
-   - 수직: `아래 공간 > 위 공간`이면 아래로 확장, 그렇지 않으면 위로
+1. **방향 감지** — 대상 영역의 양쪽 남은 공간을 비교합니다. 메뉴는 공간이 더 많은 쪽으로 열립니다:
+   - 수평: `오른쪽 공간 > 왼쪽 공간` → 오른쪽으로 확장, 그렇지 않으면 왼쪽
+   - 수직: `아래 공간 > 위 공간` → 아래로 확장, 그렇지 않으면 위
 
-2. **정밀도 최적화** — 대상 요소의 가로세로 비율과 사용 가능한 공간의 가로세로 비율을 비교하여 어느 축을 주 크기 결정 축으로 할지 정하고, 메뉴가 뷰포트 안에 최대한 들어가도록 합니다.
+2. **주 축** — 일반적으로 대상 영역의 가로세로 비율과 사용 가능한 공간의 가로세로 비율을 비교하여 결정됩니다(넓은 영역은 세로 기준 크기 선호, 그 반대도 마찬가지). `displayAreaLimit`로 강제할 수 있습니다: `'vertical'`은 수직 여유 공간 기준, `'horizontal'`은 수평 여유 공간 기준.
 
-최종 메뉴의 너비와 높이는 각 방향에서 더 큰 사용 가능한 공간을 사용합니다.
+주축을 따라 메뉴는 선택한 쪽의 여유 공간에서 `offset`을 뺀 만큼 차지합니다; 다른 축에서는 공간 경계부터 대상 영역의 반대쪽 끝까지 걸칩니다. 모든 값은 클램프되어 메뉴가 위치 공간(뷰포트, 또는 `container` 설정 시 해당 컨테이너 박스)을 벗어나지 않습니다.
 
 ---
 
 ## 전환 애니메이션
 
-표시/숨김 애니메이션은 `.dumogu-dropdown-menu-body_show` 클래스가 트리거하는 CSS 전환으로 처리됩니다:
+표시/숨김 애니메이션은 `.dumogu-dropdown-menu-body_show` 클래스로 트리거되는 CSS 전환으로 처리됩니다:
 
 - **숨김**: `transform: scale(0); opacity: 0;`
 - **표시**: `transform: scale(1); opacity: 1;`
 - **지속 시간**: `0.2s`
 - **속성**: `transform`, `opacity`
-- **transform-origin**: 확장 방향에 따라 동적으로 설정 (예: 오른쪽-아래로 확장 시 `left top`)
+- **transform-origin**: 확장 방향에 따라 동적으로 설정됩니다 (예: 오른쪽-아래로 확장 시 `left top`)
 
-`isTransitioning` 속성은 전환이 진행 중인지 나타냅니다. 라이브러리는 내부적으로 이를 사용하여 숨김 전환이 끝난 후 자동으로 `unmount()`를 호출합니다.
+`isTransitioning` 속성은 전환이 진행 중인지 나타냅니다. 중단된 전환도 처리됩니다: 전환이 취소되면(`transitioncancel`) 종료된 것으로 취급하여, 숨겨진 메뉴는 절대 발생하지 않는 `transitionend`를 기다리지 않고 즉시 언마운트됩니다.
+
+---
+
+## 보안 참고
+
+문자열로 설정된 `content`는 `innerHTML`로 할당됩니다. **신뢰할 수 없거나 사용자 출처의 입력으로 이 문자열을 절대 구성하지 마세요** — XSS 벡터가 됩니다. 동적 데이터는 `textContent` / `createElement`로 `HTMLElement`를 구성하고 요소 형태의 `content`로 전달하여, HTML 구조가 정적이고 통제 가능한 상태로 유지하세요.
+
+---
+
+## 접근성 참고
+
+이 라이브러리는 의도적으로 키보드 및 ARIA 처리를 제공하지 않습니다 — 위치 지정/표시-숨김 프리미티브입니다. 실제 메뉴에서는 최소한 다음을 직접 처리해야 합니다: `Escape`로 닫기, 방향키 탐색, `role="menu"` / `role="menuitem"` 속성, 포커스 관리.
 
 ---
 
@@ -428,13 +378,15 @@ import type {
 import { DumoguDropdownMenu } from 'dumogu-dropdown-menu';
 
 const options: DumoguDropdownMenuOptions = {
-    content: '<div>메뉴</div>',
+    content: '<div>Menu</div>',
     area: {
         start: [0, 0],
         end: [100, 50],
         width: 100,
         height: 50,
     },
+    offset: 8,
+    displayAreaLimit: 'vertical',
     show: true,
 };
 

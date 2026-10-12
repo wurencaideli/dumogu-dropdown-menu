@@ -6,7 +6,6 @@
     height: 100vh;
     overflow: hidden;
     pointer-events: none;
-    z-index: 999;
     /** 挂载到非 body 的自定义容器上时的类名，容器需要是非 static 定位 */
     &.dumogu-dropdown-menu-body_custom-parent {
         position: absolute;
@@ -24,65 +23,30 @@
 }
 .dumogu-dropdown-menu-body_container {
     position: absolute;
+    display: flex;
+    flex-direction: column;
     transform: scale(0);
     opacity: 0;
     transition:
         transform 0.2s,
         opacity 0.2s;
+    /** 内容对齐的类名,把内容钉到靠触发区域的一角 */
+    &_align-left {
+        align-items: flex-start;
+    }
+    &_align-right {
+        align-items: flex-end;
+    }
+    &_align-top {
+        justify-content: flex-start;
+    }
+    &_align-bottom {
+        justify-content: flex-end;
+    }
     > * {
         pointer-events: initial;
-    }
-}
-.dumogu-dropdown-menu-body_container_target {
-    max-width: 100%;
-    max-height: 100%;
-    overflow: auto;
-}
-/** 默认的主题类名 */
-.dumogu-dropdown-menu-theme {
-    min-width: 150px;
-    display: flex;
-    flex-direction: column;
-    width: max-content;
-    padding: 0px 0;
-    box-sizing: border-box;
-    background-color: #1f1f23;
-    box-shadow:
-        0 4px 8px rgba(0, 0, 0, 0.4),
-        0 0px 4px rgba(0, 0, 0, 0.4);
-    border: 1px solid #ffffff1d;
-    box-sizing: border-box;
-    border-radius: 8px;
-    > .dumogu-dropdown-menu-theme_item {
-        min-width: 150px;
-        display: flex;
-        flex-direction: row;
-        justify-content: flex-start;
-        align-items: center;
-        padding: 15px 25px;
-        box-sizing: border-box;
-        font-size: 13px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.2s;
-        color: rgb(206, 206, 206);
-        border-bottom: 1px solid #ffffff1d;
-        border-left: none;
-        border-right: none;
-        line-height: 1;
-        > * {
-            margin-right: 15px;
-        }
-        &:hover {
-            background-color: rgba(145, 145, 162, 0.17);
-            color: #007fff;
-        }
-        &.dumogu-dropdown-menu-theme_active {
-            background-color: rgba(145, 145, 162, 0.17);
-            color: #007fff;
-        }
-        &:last-child {
-            border-bottom: none;
-        }
+        max-width: 100%;
+        max-height: 100%;
+        overflow: auto;
     }
 }

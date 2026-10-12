@@ -17,7 +17,8 @@ dumogu-dropdown-menu is a lightweight JavaScript dropdown menu library, under 5K
 
 - **Ultra-lightweight**: < 5KB bundled, zero dependencies
 - **Style-free**: The library only handles positioning and transition animations; menu styling is entirely up to you
-- **Auto-positioning**: Automatically determines the best expansion direction based on the target element's position in the viewport (four directions with precision optimization)
+- **Auto-positioning**: Automatically determines the best expansion direction based on the target area's position in the viewport, with the primary sizing axis picked from the area's aspect ratio
+- **Direction hints**: Optionally force vertical/horizontal expansion via `displayAreaLimit`, and keep a gap from the target area via `offset`
 - **Built-in transitions**: Scale + opacity transition animations triggered via CSS class toggling
 - **TypeScript support**: Complete type declarations included
 - **Multi-format output**: ESM, CJS, and UMD builds available
@@ -75,25 +76,22 @@ function getArea(el) {
     };
 }
 
-// Create an instance
+// Create an instance (shown immediately)
 const ddInstance = new DumoguDropdownMenu({
     content: '<div class="my-menu-item">Menu Item 1</div>',
     area: getArea(btEl),
     show: true,
 });
 
-// Add the default theme class (optional — you can use fully custom styles)
-ddInstance.dropdownMenuContainerTargetEl.classList.add('dumogu-dropdown-menu-theme');
-
-// Store a reference to the trigger element for later position updates
-ddInstance.targetEl = btEl;
-
 // Toggle visibility on button click
 btEl.addEventListener('click', () => {
-    ddInstance.area = getArea(btEl);
+    ddInstance.area = getArea(btEl); // refresh the target area
     ddInstance.show = !ddInstance.show;
+    ddInstance.apply(); // sync property changes to the DOM
 });
 ```
+
+> **Key idea**: the instance exposes plain properties (`content`, `area`, `show`, `container`, `displayAreaLimit`, `offset`). Assign them, then call `apply()` to sync everything to the DOM. There are no setter methods.
 
 ---
 
@@ -105,100 +103,73 @@ Creates a new dropdown menu instance.
 
 **`options` parameters:**
 
-| Parameter   | Type                                      | Default | Description                                                |
-| ---------   | ----------------------------------------- | ------- | ---------------------------------------------------------- |
-| `content`   | `string \| HTMLElement \| HTMLElement[]`   | `''`    | Menu content — HTML string, a single DOM element, or an array of elements |
-| `area`      | `AreaOption`                              | `{}`    | Target area used to compute where the menu should expand    |
-| `show`      | `boolean`                                 | `false` | Whether to show the menu immediately                       |
-| `container` | `HTMLElement`                             | —       | Element to mount the menu into; when omitted the menu mounts to `document.body`. The container should have non-static positioning (e.g. `position: relative`) |
+| Parameter          | Type                                    | Default | Description |
+| ------------------ | --------------------------------------- | ------- | ----------- |
+| `content`          | `string \| HTMLElement`                 | `''`    | Menu content — an HTML string or a single DOM element |
+| `area`             | `AreaOption`                            | `{}`    | Target area used to compute where the menu expands |
+| `show`             | `boolean`                               | `false` | Whether to show the menu immediately |
+| `container`        | `HTMLElement`                           | —       | Element to mount the menu into; when omitted the menu mounts to `document.body`. The container should have non-static positioning (e.g. `position: relative`) |
+| `displayAreaLimit` | `'vertical' \| 'horizontal' \| ''`      | `''`    | Force the primary sizing axis: `'vertical'` sizes by height, `'horizontal'` by width; empty auto-detects from the area's aspect ratio |
+| `offset`           | `number`                                | `0`     | Gap (px) kept between the menu and the target area along the primary axis; negative values are treated as `0` |
 
 **`AreaOption` type:**
 
-| Property | Type       | Description                                              |
-| -------- | ---------- | -------------------------------------------------------- |
-| `start`  | `number[]` | Top-left corner of the target area `[x, y]` (relative to viewport) |
-| `end`    | `number[]` | Bottom-right corner of the target area `[x, y]` (relative to viewport) |
-| `width`  | `number`   | Width of the target area                                  |
-| `height` | `number`   | Height of the target area                                 |
+| Property | Type                   | Description                                              |
+| -------- | ---------------------- | -------------------------------------------------------- |
+| `start`  | `[number, number]`     | Top-left corner of the target area `[x, y]` (viewport coordinates) |
+| `end`    | `[number, number]`     | Bottom-right corner of the target area `[x, y]` (viewport coordinates) |
+| `width`  | `number`               | Width of the target area — used for the aspect-ratio comparison in auto mode |
+| `height` | `number`               | Height of the target area                                |
+
+---
+
+### Static Properties
+
+#### `DumoguDropdownMenu.baseZIndex`
+
+Base value of the z-index counter, default `999`. Every mounted menu takes the next number so recently opened menus stack on top. Change it before creating/showing instances if `999` conflicts with your page. The counter resets to the base once no menu is mounted.
 
 ---
 
 ### Instance Properties
 
+All properties are plain fields: assign a new value, then call `apply()`.
+
 #### `show`
 
-Gets or sets the menu visibility.
-
-```javascript
-// Show the menu
-ddInstance.show = true;
-
-// Hide the menu
-ddInstance.show = false;
-
-// Toggle
-ddInstance.show = !ddInstance.show;
-
-// Read current state
-console.log(ddInstance.show); // true | false
-```
+Whether the menu is (about to be) visible. Type: `boolean`.
 
 #### `content`
 
-Gets or sets the menu content. Accepts three types:
-
-```javascript
-// 1. HTML string
-ddInstance.content = '<div class="item">Menu item</div>';
-
-// 2. Single DOM element
-const el = document.createElement('div');
-el.textContent = 'Menu item';
-ddInstance.content = el;
-
-// 3. Array of DOM elements
-const items = [el1, el2, el3];
-ddInstance.content = items;
-```
-
-Setting `content` immediately updates the DOM.
+Current menu content. Type: `string | HTMLElement | undefined`. Setting the same element reference again re-attaches it if it was moved away externally.
 
 #### `area`
 
-Gets or sets the target area used for positioning. The menu calculates its expansion direction and size based on this area and the viewport dimensions.
-
-```javascript
-ddInstance.area = {
-    start: [100, 200],  // top-left of the trigger element
-    end: [300, 250],    // bottom-right of the trigger element
-    width: 200,         // element width
-    height: 50,         // element height
-};
-```
+Current target area used for positioning. Type: `AreaOption`. Coordinates are always viewport-based, even when a custom `container` is used — the library converts them for you.
 
 #### `container`
 
-Gets or sets the element the menu is mounted into. When unset (or set to `undefined`), the menu mounts to `document.body`; when set, it mounts into that element and the root element gains the `.dumogu-dropdown-menu-body_custom-parent` class. Changing the container while mounted relocates the menu immediately.
+Current mount element — `undefined` means `document.body`. Changing it while mounted relocates the menu immediately (on the next `apply()`).
 
-```javascript
-const ddInstance = new DumoguDropdownMenu({
-    container: document.getElementById('my-panel'), // mount into #my-panel
-    // ...
-});
+#### `displayAreaLimit`
 
-// Later: move it back to body
-ddInstance.container = undefined;
-```
+Current primary-axis override. Type: `'vertical' | 'horizontal' | ''`.
 
-> **Note:** the custom container should have non-static positioning (e.g. `position: relative`), since the menu is absolutely positioned and sized to fill (`100%` × `100%`) the container. Positioning is then computed against the container's box instead of the viewport — the `area` coordinates are still viewport-based, no change needed on your side.
+#### `offset`
+
+Current gap (px) between the menu and the target area along the primary axis. Type: `number`.
+
+#### `isTransitioning`
+
+Read-only-ish flag indicating whether a show/hide transition is currently in progress. Type: `boolean`.
 
 #### `isMounted`
 
-Read-only. Indicates whether the menu is currently mounted in the DOM. Type: `boolean`.
+Indicates whether the menu is currently mounted in the DOM. Type: `boolean`.
 
 #### `isDestroyed`
 
-Read-only. Indicates whether the instance has been destroyed. Type: `boolean`.
+Indicates whether the instance has been destroyed. Type: `boolean`.
 
 ---
 
@@ -206,50 +177,40 @@ Read-only. Indicates whether the instance has been destroyed. Type: `boolean`.
 
 These properties provide direct access to the menu's internal DOM structure for custom styling and event handling.
 
-| Property                        | Type               | Description                                                          |
-| ------------------------------- | ------------------ | -------------------------------------------------------------------- |
-| `dropdownMenuEl`                | `HTMLDivElement`   | Outermost container, fixed full-screen, `pointer-events: none`       |
-| `dropdownMenuContainerEl`       | `HTMLDivElement`   | Positioning container, handles transform animation and placement     |
-| `dropdownMenuContainerTargetEl` | `HTMLDivElement`   | Content container, holds the user-supplied `content`, `pointer-events: auto` |
+| Property                  | Type             | Description                                                      |
+| ------------------------- | ---------------- | ---------------------------------------------------------------- |
+| `dropdownMenuEl`          | `HTMLDivElement` | Outermost container, fixed full-viewport (or filling the custom container), `pointer-events: none` |
+| `dropdownMenuContainerEl` | `HTMLDivElement` | Positioning container, handles placement, alignment and the transform animation |
 
 **DOM structure:**
 
 ```
-dropdownMenuEl (fixed full-screen layer, pointer-events: none)
-└── dropdownMenuContainerEl (positioned + transform animation)
-    └── dropdownMenuContainerTargetEl (content wrapper, pointer-events: auto)
-        └── [user-supplied content]
+dropdownMenuEl (fixed full-viewport layer, pointer-events: none)
+└── dropdownMenuContainerEl (positioned + transform animation, content alignment)
+    └── [user-supplied content]
 ```
 
 ---
 
 ### Instance Methods
 
-#### `update()`
+#### `apply()`
 
-Manually recalculates and updates the menu position. Call this when the target element's position has changed (e.g., page scroll, window resize, layout shift).
+Syncs all property state to the DOM: content, mount container, visibility and position. Call it after changing any property.
 
 ```javascript
-// Continuously track position with requestAnimationFrame
-function loop() {
-    requestAnimationFrame(() => {
-        ddInstance.area = getArea(btEl);
-        ddInstance.update();
-        loop();
-    });
-}
-loop();
+ddInstance.area = getArea(btEl);
+ddInstance.show = true;
+ddInstance.apply();
 ```
-
-> **Why manual updates?** Element positions can change for many reasons (scrolling, layout changes, animations, etc.). The library cannot and should not monitor every scenario. Having the user decide when to update is the most efficient approach.
 
 #### `mount()`
 
-Manually mounts the menu into the `container` element (or `document.body` when no container is set). This is called automatically when setting `show = true`, so you rarely need to invoke it directly.
+Manually mounts the menu into the `container` element (or `document.body` when no container is set). This is called automatically when showing, so you rarely need to invoke it directly.
 
 #### `unmount()`
 
-Manually removes the menu from the DOM. Called automatically after the transition ends when `show === false`.
+Manually removes the menu from the DOM. Called automatically after the hide transition ends — or immediately when animations are disabled.
 
 #### `destroy()`
 
@@ -266,31 +227,16 @@ ddInstance.destroy();
 
 Core class names generated by the library:
 
-| Class                                         | Description                                                    |
-| --------------------------------------------- | -------------------------------------------------------------- |
-| `.dumogu-dropdown-menu-body`                  | Outermost container (fixed full-screen, `pointer-events: none`) |
-| `.dumogu-dropdown-menu-body_show`            | Show-state class (added to body to trigger animation)           |
-| `.dumogu-dropdown-menu-body_custom-parent`   | Added when the menu is mounted into a custom `container` instead of `document.body` (absolute, fills the container) |
-| `.dumogu-dropdown-menu-body_container`       | Positioning container (absolute, hosts the transform animation) |
-| `.dumogu-dropdown-menu-body_container_target` | Content container (`overflow: auto`, `pointer-events: auto`)    |
+| Class                                          | Description                                                    |
+| ---------------------------------------------- | -------------------------------------------------------------- |
+| `.dumogu-dropdown-menu-body`                   | Outermost container (fixed full-viewport, `pointer-events: none`) |
+| `.dumogu-dropdown-menu-body_show`              | Show-state class (added to the root to trigger the animation)  |
+| `.dumogu-dropdown-menu-body_custom-parent`     | Added when the menu is mounted into a custom `container` instead of `document.body` (absolute, fills the container) |
+| `.dumogu-dropdown-menu-body_container`         | Positioning container (absolute, hosts the transform animation) |
+| `.dumogu-dropdown-menu-body_container_align-left` / `_align-right` | Horizontal content alignment — pinned to the edge nearest the target area |
+| `.dumogu-dropdown-menu-body_container_align-top` / `_align-bottom` | Vertical content alignment — pinned to the edge nearest the target area |
 
-### Default Theme
-
-The library ships with an optional theme, activated via the `.dumogu-dropdown-menu-theme` class:
-
-```javascript
-ddInstance.dropdownMenuContainerTargetEl.classList.add('dumogu-dropdown-menu-theme');
-```
-
-Theme class names:
-
-| Class                               | Description                                |
-| ----------------------------------- | ------------------------------------------ |
-| `.dumogu-dropdown-menu-theme`       | Theme container (dark background, rounded corners, shadow) |
-| `.dumogu-dropdown-menu-theme_item`  | Menu item (hover highlight)                |
-| `.dumogu-dropdown-menu-theme_active` | Active/selected menu item state            |
-
-You can skip the default theme entirely and apply your own styles directly on `dropdownMenuContainerTargetEl`.
+The library ships **no theme**. Style your content however you like; the container's direct children get `max-width/max-height: 100%`, `overflow: auto` and `pointer-events: initial` automatically.
 
 ---
 
@@ -322,55 +268,47 @@ function getArea(el) {
 
 // Create instance
 const ddInstance = new DumoguDropdownMenu({
-    content: `
-        <div class="dumogu-dropdown-menu-theme_item">Menu Item 1</div>
-        <div class="dumogu-dropdown-menu-theme_item">Menu Item 2</div>
-        <div class="dumogu-dropdown-menu-theme_item">Menu Item 3</div>
-    `,
     area: getArea(btEl),
     show: false,
+    offset: 12, // keep a 12px gap from the button
 });
-
-// Apply default theme
-ddInstance.dropdownMenuContainerTargetEl.classList.add('dumogu-dropdown-menu-theme');
-
-// Store trigger element reference
-ddInstance.targetEl = btEl;
 
 // Toggle on button click
 btEl.addEventListener('click', () => {
     if (!ddInstance.show) {
-        // Dynamically generate items with data binding
-        const item1 = document.createElement('div');
-        item1.textContent = 'Option A';
-        item1.classList.add('dumogu-dropdown-menu-theme_item');
-        item1.onclick = () => {
-            ddInstance.show = false;
-            console.log('Selected Option A, data:', { id: 1 });
-        };
-
-        const item2 = document.createElement('div');
-        item2.textContent = 'Option B';
-        item2.classList.add('dumogu-dropdown-menu-theme_item');
-        item2.onclick = () => {
-            ddInstance.show = false;
-            console.log('Selected Option B, data:', { id: 2 });
-        };
-
-        ddInstance.content = [item1, item2];
+        // Dynamically build items with data binding
+        const menu = document.createElement('div');
+        menu.className = 'my-menu';
+        [
+            { label: 'Option A', data: { id: 1 } },
+            { label: 'Option B', data: { id: 2 } },
+        ].forEach(({ label, data }) => {
+            const item = document.createElement('div');
+            item.className = 'my-menu_item';
+            item.textContent = label;
+            item.onclick = () => {
+                ddInstance.show = false;
+                ddInstance.apply();
+                console.log('Selected:', data);
+            };
+            menu.appendChild(item);
+        });
+        ddInstance.content = menu;
     }
     ddInstance.area = getArea(btEl);
     ddInstance.show = !ddInstance.show;
+    ddInstance.apply();
 });
 
 // Close on outside click
 document.addEventListener('click', (e) => {
     if (!ddInstance.show || ddInstance.isDestroyed) return;
     if (
-        !ddInstance.dropdownMenuContainerTargetEl.contains(e.target) &&
-        !ddInstance.targetEl.contains(e.target)
+        !ddInstance.dropdownMenuContainerEl.contains(e.target) &&
+        !btEl.contains(e.target)
     ) {
         ddInstance.show = false;
+        ddInstance.apply();
     }
 });
 
@@ -378,8 +316,8 @@ document.addEventListener('click', (e) => {
 function updateLoop() {
     requestAnimationFrame(() => {
         if (!ddInstance.isDestroyed) {
-            ddInstance.area = getArea(ddInstance.targetEl);
-            ddInstance.update();
+            ddInstance.area = getArea(btEl);
+            ddInstance.apply();
             updateLoop();
         }
     });
@@ -396,15 +334,15 @@ window.addEventListener('beforeunload', () => {
 
 ## Position Calculation
 
-The menu expansion direction is determined in two steps:
+The menu's direction and size are determined in two steps:
 
-1. **Direction detection** — compares the remaining space on each side of the target element. The menu opens toward the side with more room:
+1. **Direction detection** — compares the remaining space on each side of the target area. The menu opens toward the side with more room:
    - Horizontal: if `right space > left space` → expand right, otherwise left
    - Vertical: if `bottom space > top space` → expand down, otherwise up
 
-2. **Precision optimization** — compares the aspect ratio of the target element with the available space's aspect ratio to determine which axis should be the primary sizing axis, ensuring the menu fits as fully as possible within the viewport.
+2. **Primary axis** — normally picked by comparing the target area's aspect ratio with the available space's aspect ratio (a wide area favors a vertically-sized menu and vice versa). `displayAreaLimit` overrides this: `'vertical'` sizes by the vertical free space, `'horizontal'` by the horizontal free space.
 
-The final menu width and height use the larger available space in each direction.
+Along the primary axis the menu takes the free space of the chosen side minus `offset`; along the other axis it spans from the space boundary to the far end of the target area. Values are clamped so the menu never leaves the positioning space (the viewport, or the custom container's box when `container` is set).
 
 ---
 
@@ -418,7 +356,19 @@ Show/hide animations are handled via CSS transitions triggered by the `.dumogu-d
 - **Properties**: `transform`, `opacity`
 - **transform-origin**: dynamically set based on expansion direction (e.g., `left top` when expanding right-downward)
 
-The `isTransitioning` property indicates whether a transition is currently in progress. The library uses it internally to automatically call `unmount()` after the hide transition completes.
+The `isTransitioning` property indicates whether a transition is currently in progress. Interrupted transitions are handled too: when one is cancelled (`transitioncancel`), it is treated as finished — a hidden menu unmounts right away instead of waiting for a `transitionend` that never fires.
+
+---
+
+## Security Notes
+
+`content` set as a string is assigned with `innerHTML`. **Never build that string from untrusted or user-originated input** — it would be an XSS vector. For dynamic data, build an `HTMLElement` with `textContent` / `createElement` and pass it as the element form of `content`, keeping any HTML structure static and under your control.
+
+---
+
+## Accessibility Notes
+
+The library intentionally ships no keyboard or ARIA handling — it is a positioning/show-hide primitive. For real menus you should handle at least: `Escape` to close, arrow-key navigation, `role="menu"` / `role="menuitem"` attributes and focus management.
 
 ---
 
@@ -442,6 +392,8 @@ const options: DumoguDropdownMenuOptions = {
         width: 100,
         height: 50,
     },
+    offset: 8,
+    displayAreaLimit: 'vertical',
     show: true,
 };
 
